@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: dona_arepa_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: dona_arepa
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - dona_arepa_pg:/var/lib/postgresql/data
+
+volumes:
+  dona_arepa_pg:

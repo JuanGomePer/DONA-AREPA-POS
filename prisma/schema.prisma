@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("ADMIN") // ADMIN | CASHIER
+  createdAt    DateTime @default(now())
+
+  sessions Session[] 
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PaymentMethod {
+  id      String  @id @default(cuid())
+  name    String  @unique
+  enabled Boolean @default(true)
+  isCash  Boolean @default(false) 
+
+  payments Payment[] 
+}
+
+model Denomination {
+  id      String  @id @default(cuid())
+  type    String // BILL | COIN
+  value   Int
+  enabled Boolean @default(true)
+
+  cashLines CashLine[] 
+
+  @@unique([type, value])
+}
+
+model Ingredient {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  unit      String   @default("unit")
+  stock     Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recipeItems RecipeItem[]
+}
+
+model Dish {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  price     Int
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recipe    RecipeItem[]
+  saleItems SaleItem[]
+}
+
+model RecipeItem {
+  id           String @id @default(cuid())
+  dishId       String
+  ingredientId String
+  qty          Float
+
+  dish       Dish       @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([dishId, ingredientId])
+}
+
+model Counter {
+  key   String @id
+  value Int
+}
+
+model Sale {
+  id        String   @id @default(cuid())
+  ticketNo  Int
+  total     Int
+  createdAt DateTime @default(now())
+
+  sessionId String?
+  session   CashSession? @relation(fields: [sessionId], references: [id])
+
+  items     SaleItem[]
+  payment   Payment? 
+}
+
+model SaleItem {
+  id     String @id @default(cuid())
+  saleId String
+  dishId String
+  qty    Int
+  price  Int
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  dish Dish @relation(fields: [dishId], references: [id])
+}
+
+model Payment {
+  id           String @id @default(cuid())
+  saleId       String @unique
+  methodId     String
+  amount       Int
+  
+  cashReceived Int?   
+  changeGiven  Int?
+
+  sale   Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  method PaymentMethod @relation(fields: [methodId], references: [id])
+
+  cashLines CashLine[] 
+}
+
+model CashLine {
+  id             String @id @default(cuid())
+  paymentId      String
+  denominationId String
+  qty            Int
+
+  payment      Payment      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  denomination Denomination @relation(fields: [denominationId], references: [id])
+}
+
+model CashSession {
+  id          String    @id @default(cuid())
+  openedAt    DateTime  @default(now())
+  closedAt    DateTime?
+  status      String    @default("OPEN") // OPEN | CLOSED
+  
+  sales       Sale[]
+}
