@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Package, UtensilsCrossed, ShoppingBag, LogOut } from "lucide-react";
+import { Package, UtensilsCrossed, ShoppingBag, LogOut, TrendingUp, ShoppingBag as PosIcon } from "lucide-react";
 
 const menuItems = [
-  { name: "Insumos (Stock)", href: "/admin/inventory", icon: Package },
-  { name: "Platillos (Recetas)", href: "/admin/dishes", icon: UtensilsCrossed },
+  { name: "Insumos", href: "/admin/inventory", icon: Package },
+  { name: "Platillos", href: "/admin/dishes", icon: UtensilsCrossed },
   { name: "Ventas Reales", href: "/admin/sales", icon: ShoppingBag },
+  { name: "Reportes Contables", href: "/admin/reports", icon: TrendingUp },
 ];
 
 export default function AdminSidebar() {
@@ -41,7 +42,14 @@ export default function AdminSidebar() {
           ))}
         </nav>
       </div>
-      <div className="mt-auto p-8">
+      <div className="mt-auto p-8 space-y-2">
+        <Link
+          href="/pos"
+          className="flex items-center gap-3 px-4 py-3 w-full text-green-600 font-bold hover:bg-green-50 rounded-2xl transition-all"
+        >
+          <PosIcon size={20} />
+          Ir al POS
+        </Link>
         <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-red-400 font-bold hover:bg-red-50 rounded-2xl transition-all">
           <LogOut size={20} />
           Cerrar Sesión

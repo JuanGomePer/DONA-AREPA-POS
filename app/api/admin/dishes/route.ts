@@ -1,17 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/getSession";
+import { requireSession } from "@/lib/requireSession";
 
-// --- GET: Listar platos con sus recetas ---
-export async function GET() {
-  const session = await getSession();
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+// Sin importar DishCategory — usamos los strings del enum directamente
+const VALID_CATEGORIES = ["STARTER", "MAIN", "DRINK"] as const;
+type CategoryKey = typeof VALID_CATEGORIES[number];
+
+const toCategoryEnum = (cat: string): CategoryKey => {
+  if (VALID_CATEGORIES.includes(cat as CategoryKey)) {
+    return cat as CategoryKey;
+  }
+  return "MAIN"; // fallback
+};
+
+// --- GET: Listar platos ---
+export async function GET(req: NextRequest) {
+  const { error } = await requireSession(req);
+  if (error) return error;
 
   try {
     const dishes = await prisma.dish.findMany({
-      include: { 
-        recipe: true // ESENCIAL para que el frontend pueda editar
-      },
+      include: { recipe: true },
       orderBy: { name: "asc" }
     });
     return NextResponse.json(dishes);
@@ -20,58 +29,70 @@ export async function GET() {
   }
 }
 
-// --- POST: Crear plato (Tu código original) ---
+// --- POST: Crear plato ---
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const { error } = await requireSession(req);
+  if (error) return error;
 
-  const { name, price, recipe } = await req.json();
+  const { name, price, category, recipe } = await req.json();
 
   try {
     const newDish = await prisma.$transaction(async (tx) => {
       const dish = await tx.dish.create({
-        data: { name, price: parseFloat(price), enabled: true }
+        data: { 
+          name, 
+          price: parseFloat(price), 
+          category: toCategoryEnum(category),
+          enabled: true 
+        }
       });
 
-      await tx.recipeItem.createMany({
-        data: recipe.map((r: any) => ({
-          dishId: dish.id,
-          ingredientId: r.ingredientId,
-          qty: parseFloat(r.qty)
-        }))
-      });
+      if (recipe && recipe.length > 0) {
+        await tx.recipeItem.createMany({
+          data: recipe.map((r: any) => ({
+            dishId: dish.id,
+            ingredientId: r.ingredientId,
+            qty: parseFloat(r.qty)
+          }))
+        });
+      }
       return dish;
     });
     return NextResponse.json(newDish);
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Error al crear" }, { status: 500 });
   }
 }
 
-// --- PUT: Editar plato y receta ---
+// --- PUT: Editar plato ---
 export async function PUT(req: NextRequest) {
-  const session = await getSession();
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const { error } = await requireSession(req);
+  if (error) return error;
 
-  const { id, name, price, recipe } = await req.json();
+  const { id, name, price, category, recipe } = await req.json();
 
   try {
     await prisma.$transaction(async (tx) => {
-      // 1. Actualizar plato
       await tx.dish.update({
         where: { id },
-        data: { name, price: parseFloat(price) }
+        data: { 
+          name, 
+          price: parseFloat(price),
+          category: toCategoryEnum(category)
+        }
       });
 
-      // 2. Limpiar receta vieja y poner la nueva
       await tx.recipeItem.deleteMany({ where: { dishId: id } });
-      await tx.recipeItem.createMany({
-        data: recipe.map((r: any) => ({
-          dishId: id,
-          ingredientId: r.ingredientId,
-          qty: parseFloat(r.qty)
-        }))
-      });
+      if (recipe && recipe.length > 0) {
+        await tx.recipeItem.createMany({
+          data: recipe.map((r: any) => ({
+            dishId: id,
+            ingredientId: r.ingredientId,
+            qty: parseFloat(r.qty)
+          }))
+        });
+      }
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -81,8 +102,8 @@ export async function PUT(req: NextRequest) {
 
 // --- DELETE: Borrar plato ---
 export async function DELETE(req: NextRequest) {
-  const session = await getSession();
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const { error } = await requireSession(req);
+  if (error) return error;
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
@@ -90,8 +111,6 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "ID faltante" }, { status: 400 });
 
   try {
-    // Borramos primero la receta por integridad de BD
-    await prisma.recipeItem.deleteMany({ where: { dishId: id } });
     await prisma.dish.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -4,9 +4,8 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { items, payment } = body; 
+    const { items, payment, isManagement = false, locator, note } = body;
 
-    // 1. VALIDAR SESIÓN DE CAJA ACTIVA
     const activeSession = await prisma.cashSession.findFirst({
       where: { status: "OPEN" },
     });
@@ -18,8 +17,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. LÓGICA DE REINICIO DE TICKET POR SESIÓN
-    // Contamos cuántas ventas hay en esta sesión actual y sumamos 1
     const salesInSession = await prisma.sale.count({
       where: { sessionId: activeSession.id }
     });
@@ -31,47 +28,47 @@ export async function POST(req: Request) {
     });
 
     let totalAmount = 0;
-    const itemsWithPrice = items.map((item: { dishId: string, qty: number }) => {
+    const itemsWithPrice = items.map((item: { dishId: string; qty: number }) => {
       const dish = dbDishes.find((d) => d.id === item.dishId);
       if (!dish) throw new Error(`Plato no encontrado: ${item.dishId}`);
       const lineTotal = dish.price * item.qty;
       totalAmount += lineTotal;
-      return {
-        dishId: dish.id,
-        qty: item.qty,
-        price: dish.price,
-      };
+      return { dishId: dish.id, qty: item.qty, price: dish.price };
     });
 
-    // --- INICIO DE LA TRANSACCIÓN ---
     const sale = await prisma.$transaction(async (tx) => {
       interface SaleItem { dishId: string; qty: number; price: number; }
       interface PaymentData { methodId: string; amount: number; cashReceived?: number | null; changeGiven?: number | null; }
 
-      const newSale = await tx.sale.create({
-        data: {
-          ticketNo: nextTicketNo, // Usamos el número calculado de la sesión
-          total: totalAmount,
-          sessionId: activeSession.id,
-          items: {
-            create: itemsWithPrice.map((it: SaleItem) => ({
-              dishId: it.dishId,
-              qty: it.qty,
-              price: it.price,
-            })),
-          },
-          payment: {
-            create: {
-              methodId: payment.methodId,
-              amount: totalAmount,
-              cashReceived: payment.cashReceived || null,
-              changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
-            } as PaymentData,
-          },
+      const saleData: any = {
+        ticketNo: nextTicketNo,
+        total: totalAmount,
+        sessionId: activeSession.id,
+        isManagement,
+        items: {
+          create: itemsWithPrice.map((it: SaleItem) => ({
+            dishId: it.dishId,
+            qty: it.qty,
+            price: it.price,
+          })),
         },
-        include: { items: true },
-      });
+      };
 
+      // Solo crear pago si NO es orden de gerencia
+      if (!isManagement && payment?.methodId) {
+        saleData.payment = {
+          create: {
+            methodId: payment.methodId,
+            amount: totalAmount,
+            cashReceived: payment.cashReceived || null,
+            changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
+          } as PaymentData,
+        };
+      }
+
+      const newSale = await tx.sale.create({ data: saleData, include: { items: true } });
+
+      // Descontar inventario siempre (gerencia también descuenta)
       for (const item of itemsWithPrice) {
         const dishWithRecipe = await tx.dish.findUnique({
           where: { id: item.dishId },
@@ -80,14 +77,14 @@ export async function POST(req: Request) {
 
         if (dishWithRecipe?.recipe) {
           for (const recipeItem of dishWithRecipe.recipe) {
-            const discountQty = item.qty * recipeItem.qty;
             await tx.ingredient.update({
               where: { id: recipeItem.ingredientId },
-              data: { stock: { decrement: discountQty } },
+              data: { stock: { decrement: item.qty * recipeItem.qty } },
             });
           }
         }
       }
+
       return newSale;
     });
 

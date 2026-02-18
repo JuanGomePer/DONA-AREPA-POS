@@ -57,12 +57,13 @@ model Ingredient {
 }
 
 model Dish {
-  id        String   @id @default(cuid())
-  name      String   @unique
+  id        String       @id @default(cuid())
+  name      String       @unique
   price     Int
-  enabled   Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  category  DishCategory @default(MAIN) 
+  enabled   Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   recipe    RecipeItem[]
   saleItems SaleItem[]
@@ -93,6 +94,7 @@ model Sale {
 
   sessionId String?
   session   CashSession? @relation(fields: [sessionId], references: [id])
+  isManagement Boolean @default(false)
 
   items     SaleItem[]
   payment   Payment? 
@@ -139,6 +141,23 @@ model CashSession {
   openedAt    DateTime  @default(now())
   closedAt    DateTime?
   status      String    @default("OPEN") // OPEN | CLOSED
+  baseCash    Int       @default(0)
+  expenses    CashExpense[]
   
   sales       Sale[]
+}
+
+enum DishCategory {
+  STARTER // Entrada
+  MAIN    // Plato Fuerte
+  DRINK   // Bebida
+}
+
+model CashExpense {
+  id          String      @id @default(cuid())
+  sessionId   String
+  amount      Int
+  description String
+  createdAt   DateTime    @default(now())
+  session     CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }

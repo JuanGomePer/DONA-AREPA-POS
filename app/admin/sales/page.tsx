@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Receipt, Calendar, ChevronDown, ChevronUp, Clock, DollarSign, Tag } from "lucide-react";
+import { Receipt, Calendar, ChevronDown, ChevronUp, Clock, Tag, Crown } from "lucide-react";
 
 export default function AdminSales() {
   const [sessions, setSessions] = useState<any[]>([]);
@@ -9,9 +9,9 @@ export default function AdminSales() {
 
   useEffect(() => {
     fetch("/api/admin/sessions")
-      .then(res => res.json())
-      .then(data => setSessions(Array.isArray(data) ? data : []))
-      .catch(err => console.error("Error:", err))
+      .then((res) => res.json())
+      .then((data) => setSessions(Array.isArray(data) ? data : []))
+      .catch((err) => console.error("Error:", err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -34,42 +34,63 @@ export default function AdminSales() {
       ) : (
         <div className="space-y-4">
           {sessions.map((session) => {
-            const totalSession = session.sales?.reduce((acc: number, s: any) => acc + s.total, 0) || 0;
+            const salesReal = session.salesReal || [];
+            const salesManagement = session.salesManagement || [];
+            const totalSession =
+              typeof session.totalReal === "number"
+                ? session.totalReal
+                : salesReal.reduce((acc: number, s: any) => acc + (s.total || 0), 0);
+
             const isExpanded = expandedSession === session.id;
-            
+
             return (
-              <div 
-                key={session.id} 
+              <div
+                key={session.id}
                 className={`bg-white rounded-[32px] border transition-all ${
                   isExpanded ? "shadow-xl border-blue-500 ring-4 ring-blue-50" : "border-gray-200 hover:border-blue-200"
                 }`}
               >
                 {/* CABECERA */}
-                <div 
+                <div
                   onClick={() => setExpandedSession(isExpanded ? null : session.id)}
                   className="p-7 cursor-pointer flex items-center justify-between"
                 >
                   <div className="flex items-center gap-5">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
-                      session.closedAt ? "bg-gray-100 text-gray-400" : "bg-green-100 text-green-600"
-                    }`}>
+                    <div
+                      className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                        session.closedAt ? "bg-gray-100 text-gray-400" : "bg-green-100 text-green-600"
+                      }`}
+                    >
                       <Calendar size={28} />
                     </div>
                     <div>
                       <h3 className="font-black text-xl text-gray-800">
-                        {new Date(session.openedAt).toLocaleDateString("es-CO", { 
-                          day: '2-digit', month: 'long', year: 'numeric' 
+                        {new Date(session.openedAt).toLocaleDateString("es-CO", {
+                          day: "2-digit",
+                          month: "long",
+                          year: "numeric",
                         })}
                       </h3>
+
                       <div className="flex items-center gap-3 mt-1">
                         <span className="flex items-center gap-1 text-xs font-bold text-gray-400 uppercase tracking-tight">
-                          <Clock size={14} /> {new Date(session.openedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                          {session.closedAt ? ` — ${new Date(session.closedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : " (Abierta)"}
+                          <Clock size={14} />{" "}
+                          {new Date(session.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {session.closedAt
+                            ? ` — ${new Date(session.closedAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}`
+                            : " (Abierta)"}
                         </span>
-                        {!session.closedAt && (
-                          <span className="bg-green-500 w-2 h-2 rounded-full animate-ping" />
-                        )}
+                        {!session.closedAt && <span className="bg-green-500 w-2 h-2 rounded-full animate-ping" />}
                       </div>
+
+                      {salesManagement.length > 0 && (
+                        <div className="mt-2 inline-flex items-center gap-1.5 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+                          <Crown size={12} /> {salesManagement.length} Gerencia
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -84,13 +105,14 @@ export default function AdminSales() {
 
                 {/* DETALLE */}
                 {isExpanded && (
-                  <div className="px-7 pb-7">
+                  <div className="px-7 pb-7 space-y-4">
+                    {/* VENTAS REALES */}
                     <div className="bg-gray-50 rounded-[24px] p-6 border border-gray-100">
                       <div className="flex items-center gap-2 mb-4">
                         <Tag size={18} className="text-blue-500" />
-                        <h4 className="font-black text-sm uppercase text-gray-700">Desglose de Ventas</h4>
+                        <h4 className="font-black text-sm uppercase text-gray-700">Ventas reales</h4>
                       </div>
-                      
+
                       <div className="overflow-hidden">
                         <table className="w-full text-left">
                           <thead className="text-[10px] font-black text-gray-400 uppercase border-b border-gray-200">
@@ -102,12 +124,14 @@ export default function AdminSales() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
-                            {session.sales?.map((sale: any) => (
+                            {salesReal.map((sale: any) => (
                               <tr key={sale.id} className="group">
                                 <td className="py-4 font-bold text-gray-900">#{sale.ticketNo}</td>
                                 <td className="py-4 text-xs text-gray-600 max-w-[200px]">
                                   {sale.items.map((it: any) => (
-                                    <span key={it.id} className="block">{it.qty}x {it.dish.name}</span>
+                                    <span key={it.id} className="block">
+                                      {it.qty}x {it.dish.name}
+                                    </span>
                                   ))}
                                 </td>
                                 <td className="py-4">
@@ -124,10 +148,48 @@ export default function AdminSales() {
                         </table>
                       </div>
 
-                      {session.sales?.length === 0 && (
-                        <p className="text-center py-6 text-gray-400 italic text-sm">No hubo ventas en este turno.</p>
+                      {salesReal.length === 0 && (
+                        <p className="text-center py-6 text-gray-400 italic text-sm">No hubo ventas reales en este turno.</p>
                       )}
                     </div>
+
+                    {/* GERENCIA (NO SUMA) */}
+                    {salesManagement.length > 0 && (
+                      <div className="bg-purple-50 rounded-[24px] p-6 border border-purple-100">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Crown size={18} className="text-purple-600" />
+                          <h4 className="font-black text-sm uppercase text-purple-700">Gerencia </h4>
+                        </div>
+
+                        <div className="space-y-3">
+                          {salesManagement.map((sale: any) => (
+                            <div key={sale.id} className="bg-white/70 border border-purple-100 rounded-2xl p-4">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-black text-purple-700 uppercase">
+                                  {new Date(sale.createdAt).toLocaleString("es-CO")}
+                                </span>
+                                <span className="text-sm font-black text-purple-800">{formatCurrency(sale.total)}</span>
+                              </div>
+
+                              <div className="space-y-1">
+                                {sale.items.map((it: any) => (
+                                  <div key={it.id} className="flex justify-between text-sm font-bold text-purple-800">
+                                    <span className="truncate mr-3">
+                                      {it.qty}× {it.dish.name}
+                                    </span>
+                                    <span className="shrink-0">{formatCurrency(it.qty * it.price)}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="mt-2 text-[10px] font-black uppercase text-purple-600">
+                                Sin cobro — orden de gerencia
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -1,14 +1,13 @@
-"use client"; // Crucial: Permite usar onClick y window.print()
+"use client";
 
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
-import { Printer, CheckCircle, Home, MapPin, FileText, ArrowLeft } from "lucide-react";
+import { Printer, ArrowLeft, Crown } from "lucide-react";
 
 type Params = Promise<{ id: string }>;
-type SearchParams = Promise<{ loc?: string; note?: string }>;
+type SearchParams = Promise<{ loc?: string; note?: string; management?: string }>;
 
 export default function ReceiptPage(props: { params: Params; searchParams: SearchParams }) {
-  // Desenvolvemos las promesas de Next.js 15/16 usando "use"
   const params = use(props.params);
   const searchParams = use(props.searchParams);
   const router = useRouter();
@@ -16,18 +15,14 @@ export default function ReceiptPage(props: { params: Params; searchParams: Searc
   const [sale, setSale] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Datos de la URL
   const loc = searchParams.loc || "N/A";
   const note = searchParams.note || "";
+  const isManagement = searchParams.management === "1";
 
   useEffect(() => {
-    // Obtenemos los datos de la venta desde nuestra API
     fetch(`/api/sales/${params.id}`)
       .then((res) => res.json())
-      .then((data) => {
-        setSale(data);
-        setLoading(false);
-      })
+      .then((data) => { setSale(data); setLoading(false); })
       .catch((err) => console.error("Error cargando venta:", err));
   }, [params.id]);
 
@@ -50,24 +45,29 @@ export default function ReceiptPage(props: { params: Params; searchParams: Searc
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 flex flex-col items-center">
-      {/* CONTENEDOR DEL RECIBO - Esta es la parte que se imprime */}
       <div id="receipt-content" className="bg-white p-6 shadow-lg w-full max-w-[380px] print:shadow-none print:p-2 print:max-w-full">
-        
-        {/* Encabezado para impresión */}
+
+        {/* Encabezado */}
         <div className="text-center mb-4 border-b-2 border-black border-dashed pb-4">
           <h2 className="text-2xl font-black uppercase italic">Dona Arepa</h2>
           <p className="text-xs font-bold uppercase tracking-widest">Punto de Venta</p>
           <p className="text-[10px] text-gray-500">{new Date(sale.createdAt).toLocaleString("es-CO")}</p>
+          {/* Badge gerencia */}
+          {isManagement && (
+            <div className="mt-2 inline-flex items-center gap-1.5 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+              <Crown size={12} /> Orden de Gerencia
+            </div>
+          )}
         </div>
 
-        {/* Localizador - Lo más importante para cocina/mesero */}
-        <div className="flex flex-col items-center justify-center border-2 border-black rounded-2xl p-4 mb-4">
+        {/* Localizador */}
+        <div className={`flex flex-col items-center justify-center border-2 rounded-2xl p-4 mb-4 ${isManagement ? "border-purple-400 bg-purple-50" : "border-black"}`}>
           <span className="text-[10px] font-black uppercase">Localizador</span>
-          <span className="text-6xl font-black">{loc}</span>
+          <span className={`text-6xl font-black ${isManagement ? "text-purple-700" : ""}`}>{loc}</span>
           <span className="text-[10px] font-bold mt-1 uppercase">Ticket #{sale.ticketNo}</span>
         </div>
 
-        {/* Nota de Orden */}
+        {/* Nota */}
         {note && (
           <div className="border-l-4 border-black pl-3 mb-4">
             <span className="text-[10px] font-black uppercase block">Nota:</span>
@@ -75,7 +75,7 @@ export default function ReceiptPage(props: { params: Params; searchParams: Searc
           </div>
         )}
 
-        {/* Lista de Productos */}
+        {/* Productos */}
         <table className="w-full text-sm mb-4">
           <thead>
             <tr className="border-b border-black border-dotted">
@@ -99,14 +99,28 @@ export default function ReceiptPage(props: { params: Params; searchParams: Searc
         <div className="border-t-2 border-black border-dashed pt-4 space-y-1">
           <div className="flex justify-between font-bold">
             <span>TOTAL:</span>
-            <span className="text-xl font-black">${sale.total.toLocaleString()}</span>
-          </div>
-          <div className="text-[10px] flex justify-between uppercase">
-            <span>Pago: {sale.payment.method.name}</span>
-            {sale.payment.method.isCash && (
-              <span>Cambio: ${(sale.payment.changeGiven || 0).toLocaleString()}</span>
+            {isManagement ? (
+              <span className="text-purple-600 font-black text-xl">GERENCIA</span>
+            ) : (
+              <span className="text-xl font-black">${sale.total.toLocaleString()}</span>
             )}
           </div>
+
+          {/* Pago — solo si existe (no gerencia) */}
+          {sale.payment && (
+            <div className="text-[10px] flex justify-between uppercase">
+              <span>Pago: {sale.payment.method.name}</span>
+              {sale.payment.method.isCash && (
+                <span>Cambio: ${(sale.payment.changeGiven || 0).toLocaleString()}</span>
+              )}
+            </div>
+          )}
+
+          {isManagement && (
+            <div className="text-[10px] uppercase text-purple-600 font-bold text-center pt-1">
+              Sin cargo — orden autorizada por gerencia
+            </div>
+          )}
         </div>
 
         <div className="text-center mt-6 pt-4 border-t border-gray-200 print:block hidden">
@@ -114,16 +128,15 @@ export default function ReceiptPage(props: { params: Params; searchParams: Searc
         </div>
       </div>
 
-      {/* BOTONES DE ACCIÓN - Ocultos al imprimir */}
+      {/* Botones */}
       <div className="mt-8 flex flex-col gap-3 w-full max-w-[380px] no-print">
-        <button 
-          onClick={() => window.print()} // CORRECCIÓN AQUÍ: Función, no string
+        <button
+          onClick={() => window.print()}
           className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-5 rounded-2xl font-black text-xl shadow-xl active:scale-95 transition-all"
         >
           <Printer size={24} /> IMPRIMIR RECIBO
         </button>
-        
-        <button 
+        <button
           onClick={() => router.push("/pos")}
           className="w-full flex items-center justify-center gap-2 bg-white text-gray-600 py-4 rounded-2xl font-bold border-2 border-gray-200 active:scale-95 transition-all"
         >
@@ -131,31 +144,12 @@ export default function ReceiptPage(props: { params: Params; searchParams: Searc
         </button>
       </div>
 
-      {/* CSS PARA IMPRESORAS TÉRMICAS */}
       <style jsx global>{`
         @media print {
-          /* Ocultar todo lo que no sea el recibo */
-          .no-print, nav, footer, button {
-            display: none !important;
-          }
-          body {
-            background-color: white !important;
-            margin: 0;
-            padding: 0;
-          }
-          /* Ajustar el contenedor para papel térmico (típicamente 80mm o 58mm) */
-          #receipt-content {
-            width: 100% !important;
-            max-width: 80mm; /* Estándar de impresora térmica */
-            padding: 0;
-            margin: 0;
-            box-shadow: none !important;
-            border: none !important;
-          }
-          @page {
-            margin: 0;
-            size: auto;
-          }
+          .no-print, nav, footer, button { display: none !important; }
+          body { background-color: white !important; margin: 0; padding: 0; }
+          #receipt-content { width: 100% !important; max-width: 80mm; padding: 0; margin: 0; box-shadow: none !important; border: none !important; }
+          @page { margin: 0; size: auto; }
         }
       `}</style>
     </div>
