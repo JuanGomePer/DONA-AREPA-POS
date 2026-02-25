@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import PosClient from "./pos-client";
 
+export const dynamic = 'force-dynamic';
+
 export default async function PosPage() {
   // Middleware ya se encarga de redirigir si no hay cookie.
   const [dishes, methods, denoms] = await Promise.all([
