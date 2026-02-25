@@ -47,8 +47,8 @@ export default function LoginPage() {
         <div className="space-y-2">
           <input
             className="w-full border-none bg-gray-100 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-            placeholder="Correo electrónico"
-            type="email"
+            placeholder="Usuario"
+            type="text"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
