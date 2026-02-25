@@ -14,7 +14,7 @@ model User {
   role         String   @default("ADMIN") // ADMIN | CASHIER
   createdAt    DateTime @default(now())
 
-  sessions Session[] 
+  sessions Session[]
 }
 
 model Session {
@@ -29,9 +29,9 @@ model PaymentMethod {
   id      String  @id @default(cuid())
   name    String  @unique
   enabled Boolean @default(true)
-  isCash  Boolean @default(false) 
+  isCash  Boolean @default(false)
 
-  payments Payment[] 
+  payments Payment[]
 }
 
 model Denomination {
@@ -40,7 +40,7 @@ model Denomination {
   value   Int
   enabled Boolean @default(true)
 
-  cashLines CashLine[] 
+  cashLines CashLine[]
 
   @@unique([type, value])
 }
@@ -54,13 +54,60 @@ model Ingredient {
   updatedAt DateTime @updatedAt
 
   recipeItems RecipeItem[]
+
+  // =========================
+  // NUEVO: “Producto” contable
+  // (precio del paquete y rendimiento)
+  // =========================
+  product IngredientProduct?
+
+  // =========================
+  // NUEVO: Lotes FIFO (costos por compra)
+  // =========================
+  batches IngredientBatch[]
+}
+
+//
+// NUEVO: Configuración contable por ingrediente (pestaña productos)
+// packPrice: precio total del paquete (COP)
+// packQty: cantidad que trae / porciones (misma unidad del ingrediente)
+// unitCost implícito = packPrice / packQty
+//
+model IngredientProduct {
+  id           String @id @default(cuid())
+  ingredientId String @unique
+
+  packPrice Int
+  packQty   Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+}
+
+//
+// NUEVO: Lote de compra para FIFO
+// qtyRemaining: cuánto queda de ese lote
+// unitCost: costo unitario en COP por unidad del ingrediente
+//
+model IngredientBatch {
+  id           String   @id @default(cuid())
+  ingredientId String
+  qtyRemaining Float
+  unitCost     Float
+  createdAt    DateTime @default(now())
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@index([ingredientId, createdAt])
 }
 
 model Dish {
   id        String       @id @default(cuid())
   name      String       @unique
   price     Int
-  category  DishCategory @default(MAIN) 
+  category  DishCategory @default(MAIN)
   enabled   Boolean      @default(true)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
@@ -92,12 +139,12 @@ model Sale {
   total     Int
   createdAt DateTime @default(now())
 
-  sessionId String?
-  session   CashSession? @relation(fields: [sessionId], references: [id])
-  isManagement Boolean @default(false)
+  sessionId    String?
+  session      CashSession? @relation(fields: [sessionId], references: [id])
+  isManagement Boolean      @default(false)
 
-  items     SaleItem[]
-  payment   Payment? 
+  items   SaleItem[]
+  payment Payment?
 }
 
 model SaleItem {
@@ -112,18 +159,18 @@ model SaleItem {
 }
 
 model Payment {
-  id           String @id @default(cuid())
-  saleId       String @unique
-  methodId     String
-  amount       Int
-  
-  cashReceived Int?   
+  id       String @id @default(cuid())
+  saleId   String @unique
+  methodId String
+  amount   Int
+
+  cashReceived Int?
   changeGiven  Int?
 
   sale   Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
   method PaymentMethod @relation(fields: [methodId], references: [id])
 
-  cashLines CashLine[] 
+  cashLines CashLine[]
 }
 
 model CashLine {
@@ -137,27 +184,28 @@ model CashLine {
 }
 
 model CashSession {
-  id          String    @id @default(cuid())
-  openedAt    DateTime  @default(now())
-  closedAt    DateTime?
-  status      String    @default("OPEN") // OPEN | CLOSED
-  baseCash    Int       @default(0)
-  expenses    CashExpense[]
-  
-  sales       Sale[]
+  id       String    @id @default(cuid())
+  openedAt DateTime  @default(now())
+  closedAt DateTime?
+  status   String    @default("OPEN") // OPEN | CLOSED
+  baseCash Int       @default(0)
+
+  expenses CashExpense[]
+  sales    Sale[]
 }
 
 enum DishCategory {
   STARTER // Entrada
-  MAIN    // Plato Fuerte
-  DRINK   // Bebida
+  MAIN // Plato Fuerte
+  DRINK // Bebida
 }
 
 model CashExpense {
-  id          String      @id @default(cuid())
+  id          String   @id @default(cuid())
   sessionId   String
   amount      Int
   description String
-  createdAt   DateTime    @default(now())
-  session     CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  session CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }

@@ -2,57 +2,227 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/getSession";
 
+/** Helpers */
+function asNumber(v: unknown): number {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function roundCost(n: number) {
+  // evita problemas de floats al comparar costos
+  return Number(n.toFixed(6));
+}
+
+async function requireAdmin() {
+  const session = await getSession();
+  if (!session?.role || session.role !== "ADMIN") {
+    return { ok: false as const, res: NextResponse.json({ error: "No autorizado" }, { status: 403 }) };
+  }
+  return { ok: true as const };
+}
+
 // GET: Listar ingredientes
 export async function GET() {
-  const session = await getSession();
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.res;
 
-  const ingredients = await prisma.ingredient.findMany({ orderBy: { name: "asc" } });
+  const ingredients = await prisma.ingredient.findMany({
+    orderBy: { name: "asc" },
+    include: { product: true },
+  });
+
   return NextResponse.json(ingredients);
 }
 
 // POST: Crear ingrediente nuevo
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.res;
 
   const { name, unit, stock } = await req.json();
-  const newIng = await prisma.ingredient.create({
-    data: { name, unit, stock: parseFloat(stock) }
+  const stockNum = asNumber(stock);
+  if (!name || !unit || !Number.isFinite(stockNum) || stockNum < 0) {
+    return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+  }
+
+  const created = await prisma.$transaction(async (tx) => {
+    const ing = await tx.ingredient.create({
+      data: { name: String(name), unit: String(unit), stock: stockNum },
+    });
+
+    // Si crean con stock inicial > 0, lo reflejamos como “lote” con costo 0
+    // (hasta que configures el producto/costo real). Es el mínimo para consistencia.
+    if (stockNum > 0) {
+      await tx.ingredientBatch.create({
+        data: { ingredientId: ing.id, qtyRemaining: stockNum, unitCost: 0 },
+      });
+    }
+
+    return ing;
   });
-  return NextResponse.json(newIng);
+
+  return NextResponse.json(created);
 }
 
 // PUT: Editar ingrediente (corrección directa del stock)
 export async function PUT(req: NextRequest) {
-  const session = await getSession();
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.res;
 
   const { id, name, unit, stock } = await req.json();
-  const updated = await prisma.ingredient.update({
-    where: { id },
-    data: { name, unit, stock: parseFloat(stock) }
+  const stockNum = asNumber(stock);
+  if (!id || !name || !unit || !Number.isFinite(stockNum) || stockNum < 0) {
+    return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    // Actualiza datos básicos + stock exacto
+    const ing = await tx.ingredient.update({
+      where: { id: String(id) },
+      data: { name: String(name), unit: String(unit), stock: stockNum },
+      include: { product: true },
+    });
+
+    // Reconciliar lotes para que SUM(lotes) == stockNum
+    const agg = await tx.ingredientBatch.aggregate({
+      where: { ingredientId: ing.id },
+      _sum: { qtyRemaining: true },
+    });
+    const sumBatches = agg._sum.qtyRemaining ?? 0;
+    const diff = stockNum - sumBatches;
+
+    // costo actual (solo para ajustes positivos)
+    const currentUnitCost =
+      ing.product && ing.product.packQty > 0 ? roundCost(ing.product.packPrice / ing.product.packQty) : 0;
+
+    if (Math.abs(diff) < 1e-9) {
+      return ing;
+    }
+
+    if (diff > 0) {
+      // faltaba stock en lotes -> creamos “lote ajuste” con costo actual (o 0 si no hay producto)
+      await tx.ingredientBatch.create({
+        data: {
+          ingredientId: ing.id,
+          qtyRemaining: diff,
+          unitCost: currentUnitCost,
+        },
+      });
+      return ing;
+    }
+
+    // diff < 0: sobran lotes -> quitamos desde el MÁS NUEVO (corrección física)
+    let toRemove = -diff;
+
+    const batches = await tx.ingredientBatch.findMany({
+      where: { ingredientId: ing.id, qtyRemaining: { gt: 0 } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    for (const b of batches) {
+      if (toRemove <= 0) break;
+      const take = Math.min(toRemove, b.qtyRemaining);
+
+      const r = await tx.ingredientBatch.updateMany({
+        where: { id: b.id, qtyRemaining: { gte: take } },
+        data: { qtyRemaining: { decrement: take } },
+      });
+      if (r.count !== 1) {
+        // muy raro (concurrencia), reventamos para no dejar inconsistente
+        throw new Error("BATCH_ADJUST_CONFLICT");
+      }
+
+      toRemove -= take;
+    }
+
+    if (toRemove > 1e-9) {
+      // No había suficiente en lotes, dejamos consistente igual y limpiamos
+      // (esto solo pasaría si lotes estaban mal)
+      throw new Error("BATCH_ADJUST_INSUFFICIENT");
+    }
+
+    return ing;
   });
+
   return NextResponse.json(updated);
 }
 
-// PATCH: Sumar stock (reabastecimiento)
+// PATCH: Sumar stock (reabastecimiento) con costo por lote
 export async function PATCH(req: NextRequest) {
-  const session = await getSession();
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.res;
 
   const { id, amount } = await req.json();
-  const updated = await prisma.ingredient.update({
-    where: { id },
-    data: { stock: { increment: parseFloat(amount) } } // Prisma suma directamente en DB
+  const amountNum = asNumber(amount);
+
+  if (!id || !Number.isFinite(amountNum) || amountNum <= 0) {
+    return NextResponse.json({ error: "Cantidad inválida" }, { status: 400 });
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const ing = await tx.ingredient.findUnique({
+      where: { id: String(id) },
+      include: { product: true },
+    });
+
+    if (!ing) return { error: "Ingrediente no encontrado", status: 404 as const };
+
+    if (!ing.product || ing.product.packQty <= 0 || ing.product.packPrice < 0) {
+      return { error: "Configura el producto (precio y porciones) antes de reabastecer", status: 400 as const };
+    }
+
+    const unitCost = roundCost(ing.product.packPrice / ing.product.packQty);
+
+    // 1) incrementa stock total
+    await tx.ingredient.update({
+      where: { id: ing.id },
+      data: { stock: { increment: amountNum } },
+    });
+
+    // 2) Crea lote FIFO (o fusiona si mismo costo y reciente)
+    const now = new Date();
+    const since = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24h
+
+    const lastSameCost = await tx.ingredientBatch.findFirst({
+      where: {
+        ingredientId: ing.id,
+        unitCost,
+        createdAt: { gte: since },
+        qtyRemaining: { gt: 0 },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (lastSameCost) {
+      await tx.ingredientBatch.update({
+        where: { id: lastSameCost.id },
+        data: { qtyRemaining: { increment: amountNum } },
+      });
+    } else {
+      await tx.ingredientBatch.create({
+        data: { ingredientId: ing.id, qtyRemaining: amountNum, unitCost },
+      });
+    }
+
+    const updated = await tx.ingredient.findUnique({
+      where: { id: ing.id },
+      include: { product: true },
+    });
+
+    return { ok: true as const, updated };
   });
-  return NextResponse.json(updated);
+
+  if ("error" in result && result.error) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  return NextResponse.json(result.updated);
 }
 
 // DELETE: Borrar ingrediente
 export async function DELETE(req: NextRequest) {
-  const session = await getSession();
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.res;
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");

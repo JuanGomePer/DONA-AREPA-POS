@@ -1,10 +1,23 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Package, UtensilsCrossed, ShoppingBag, LogOut, TrendingUp, ShoppingBag as PosIcon } from "lucide-react";
+import {
+  Package,
+  UtensilsCrossed,
+  ShoppingBag,
+  LogOut,
+  TrendingUp,
+  ShoppingBag as PosIcon,
+  Boxes,
+} from "lucide-react";
 
 const menuItems = [
   { name: "Insumos", href: "/admin/inventory", icon: Package },
+
+  // ✅ NUEVO: Productos (contable) justo debajo de inventario
+  { name: "Productos", href: "/admin/products", icon: Boxes },
+
   { name: "Platillos", href: "/admin/dishes", icon: UtensilsCrossed },
   { name: "Ventas Reales", href: "/admin/sales", icon: ShoppingBag },
   { name: "Reportes Contables", href: "/admin/reports", icon: TrendingUp },
@@ -27,13 +40,16 @@ export default function AdminSidebar() {
           <div className="bg-blue-600 p-2 rounded-xl text-white font-black text-xs">DA</div>
           <span className="font-black text-xl tracking-tight text-gray-900">AdminPanel</span>
         </div>
+
         <nav className="space-y-2">
           {menuItems.map((item) => (
             <Link
               key={item.name}
               href={item.href}
               className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all ${
-                pathname === item.href ? "bg-blue-50 text-blue-600" : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                pathname === item.href
+                  ? "bg-blue-50 text-blue-600"
+                  : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
               }`}
             >
               <item.icon size={20} />
@@ -42,6 +58,7 @@ export default function AdminSidebar() {
           ))}
         </nav>
       </div>
+
       <div className="mt-auto p-8 space-y-2">
         <Link
           href="/pos"
@@ -50,7 +67,11 @@ export default function AdminSidebar() {
           <PosIcon size={20} />
           Ir al POS
         </Link>
-        <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-red-400 font-bold hover:bg-red-50 rounded-2xl transition-all">
+
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-3 w-full text-red-400 font-bold hover:bg-red-50 rounded-2xl transition-all"
+        >
           <LogOut size={20} />
           Cerrar Sesión
         </button>

@@ -7,9 +7,14 @@ type SessionSummary = {
   openedAt: string;
   closedAt: string;
   baseCash: number;
-  totalReal: number;
+
+  totalReal: number;        // vendido
   totalMgmt: number;
-  totalExpenses: number;
+  totalExpenses: number;    // gastos
+
+  investment: number;       // NUEVO
+  profit: number;           // NUEVO
+
   byMethod: Record<string, { name: string; amount: number }>;
   realCount: number;
   mgmtCount: number;
@@ -21,10 +26,16 @@ type Report = {
   monthKey?: string;
   year?: number;
   month?: number;
+
   sessions: SessionSummary[];
+
   totalReal: number;
   totalMgmt: number;
   totalExpenses: number;
+
+  totalInvestment: number;  // NUEVO
+  profit: number;           // NUEVO
+
   byMethod: Record<string, { name: string; amount: number }>;
 };
 
@@ -46,10 +57,10 @@ export default function AdminReports() {
       .finally(() => setLoading(false));
   }, []);
 
-  const formatCurrency = (val: number) => `$${val.toLocaleString("es-CO")}`;
+  const formatCurrency = (val: number) => `$${(val || 0).toLocaleString("es-CO")}`;
 
   const getMonthName = (month: number) => {
-    const names = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const names = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
     return names[month - 1];
   };
 
@@ -66,7 +77,10 @@ export default function AdminReports() {
       ? `Semana del ${getWeekRange(report.weekStart!)}`
       : `${getMonthName(report.month!)} ${report.year}`;
 
-    const netIncome = report.totalReal - report.totalExpenses;
+    const sold = report.totalReal;
+    const investment = report.totalInvestment;
+    const expenses = report.totalExpenses;
+    const profit = report.profit;
 
     const html = `<!DOCTYPE html><html><head><title>Reporte - ${title}</title>
     <style>
@@ -89,9 +103,28 @@ export default function AdminReports() {
       <h1>DONA AREPA — REPORTE ${isWeekly ? "SEMANAL" : "MENSUAL"}</h1>
       <p class="subtitle">${title}</p>
       <div class="divider"></div>
-      
+
       <div class="section">
-        <div class="section-title">Resumen de Turnos (${report.sessions.length})</div>
+        <div class="section-title">Resumen</div>
+        <div class="row"><span>Vendido</span><span>${formatCurrency(sold)}</span></div>
+        <div class="row"><span>Inversión</span><span>-${formatCurrency(investment)}</span></div>
+        <div class="row"><span>Gastos</span><span>-${formatCurrency(expenses)}</span></div>
+        <div class="row bold"><span>Ganancia</span><span>${formatCurrency(profit)}</span></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section">
+        <div class="section-title">Ventas por método</div>
+        ${Object.values(report.byMethod)
+          .map((m) => `<div class="row indent"><span>${m.name}</span><span>${formatCurrency(m.amount)}</span></div>`)
+          .join("") || '<div class="row indent"><span>Sin ventas</span><span>$0</span></div>'}
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section">
+        <div class="section-title">Turnos (${report.sessions.length})</div>
         ${report.sessions.map(s => `
           <div class="session-item">
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
@@ -99,48 +132,19 @@ export default function AdminReports() {
               <span>${formatCurrency(s.totalReal)}</span>
             </div>
             <div style="font-size:11px; color:#666;">
-              ${s.realCount} ventas • Base: ${formatCurrency(s.baseCash)} • Gastos: ${formatCurrency(s.totalExpenses)}
-              ${s.mgmtCount > 0 ? ` • ${s.mgmtCount} gerencia` : ''}
+              Vendido: ${formatCurrency(s.totalReal)} • Inversión: ${formatCurrency(s.investment)} • Gastos: ${formatCurrency(s.totalExpenses)} • Ganancia: ${formatCurrency(s.profit)}
             </div>
           </div>
-        `).join('')}
+        `).join("")}
       </div>
 
-      <div class="divider"></div>
-
-      <div class="section">
-        <div class="section-title">Ventas Reales (${report.sessions.reduce((acc, s) => acc + s.realCount, 0)} órdenes)</div>
-        ${Object.values(report.byMethod)
-          .map((m) => `<div class="row indent"><span>${m.name}</span><span>${formatCurrency(m.amount)}</span></div>`)
-          .join("") || '<div class="row indent"><span>Sin ventas</span><span>$0</span></div>'}
-        <div class="row bold"><span>Total Ventas</span><span>${formatCurrency(report.totalReal)}</span></div>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Gastos</div>
-        <div class="row bold"><span>Total Gastos</span><span>-${formatCurrency(report.totalExpenses)}</span></div>
-      </div>
-
-      ${
-        report.totalMgmt > 0
-          ? `
-      <div class="section">
-        <div class="section-title">Gerencia (${report.sessions.reduce((acc, s) => acc + s.mgmtCount, 0)} órdenes — sin cobro)</div>
-        <div class="row"><span>Valor registrado</span><span>${formatCurrency(report.totalMgmt)}</span></div>
-      </div>
-      `
-          : ""
-      }
-
-      <div class="divider"></div>
       <div class="total-box">
-        <div class="label">Ingreso Neto (Para declaración)</div>
-        <div class="value">${formatCurrency(netIncome)}</div>
+        <div class="label">Ganancia</div>
+        <div class="value">${formatCurrency(profit)}</div>
       </div>
 
       <div class="footer">
-        Generado: ${new Date().toLocaleString("es-CO")}<br>
-        ${report.sessions.length} turnos de caja incluidos
+        Generado: ${new Date().toLocaleString("es-CO")}
       </div>
     </body></html>`;
 
@@ -160,7 +164,6 @@ export default function AdminReports() {
     <div className="p-8 max-w-6xl mx-auto min-h-screen bg-gray-50/50">
       <header className="mb-10">
         <h1 className="text-4xl font-black tracking-tighter text-gray-900">REPORTES CONTABLES</h1>
-        <p className="text-gray-500 font-medium">Resúmenes para declaración de impuestos</p>
       </header>
 
       {/* Tabs */}
@@ -192,11 +195,7 @@ export default function AdminReports() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {data.map((report) => {
             const isWeekly = !!report.weekKey;
-            const title = isWeekly
-              ? getWeekRange(report.weekStart!)
-              : `${getMonthName(report.month!)} ${report.year}`;
-
-            const netIncome = report.totalReal - report.totalExpenses;
+            const title = isWeekly ? getWeekRange(report.weekStart!) : `${getMonthName(report.month!)} ${report.year}`;
 
             return (
               <button
@@ -213,14 +212,18 @@ export default function AdminReports() {
 
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-gray-400 uppercase">Ingreso Neto</span>
-                    <span className="text-2xl font-black text-green-600">{formatCurrency(netIncome)}</span>
+                    <span className="text-xs font-bold text-gray-400 uppercase">Ganancia</span>
+                    <span className="text-2xl font-black text-green-600">{formatCurrency(report.profit)}</span>
                   </div>
 
                   <div className="pt-3 border-t border-gray-100 space-y-1.5">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 font-medium">Ventas</span>
+                      <span className="text-gray-500 font-medium">Vendido</span>
                       <span className="font-bold text-blue-600">{formatCurrency(report.totalReal)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500 font-medium">Materia Prima</span>
+                      <span className="font-bold text-amber-600">-{formatCurrency(report.totalInvestment)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500 font-medium">Gastos</span>
@@ -277,14 +280,15 @@ export default function AdminReports() {
               </div>
             </div>
 
-            {/* Body scrollable */}
+            {/* Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
-              {/* Ventas */}
+              {/* Vendido */}
               <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100">
                 <div className="flex items-center gap-2 mb-4">
                   <DollarSign size={18} className="text-blue-600" />
-                  <h4 className="font-black text-sm uppercase text-blue-700">Ventas Reales</h4>
+                  <h4 className="font-black text-sm uppercase text-blue-700">Vendido (Ventas Reales)</h4>
                 </div>
+
                 {Object.values(selectedReport.byMethod).length === 0 ? (
                   <p className="text-sm text-gray-400 italic">Sin ventas registradas</p>
                 ) : (
@@ -295,9 +299,22 @@ export default function AdminReports() {
                     </div>
                   ))
                 )}
+
                 <div className="border-t border-blue-200 mt-3 pt-3 flex justify-between font-black text-blue-900 text-base">
-                  <span>Total Ventas</span>
+                  <span>Total Vendido</span>
                   <span>{formatCurrency(selectedReport.totalReal)}</span>
+                </div>
+              </div>
+
+              {/* Inversión */}
+              <div className="bg-amber-50 rounded-2xl p-5 border border-amber-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp size={18} className="text-amber-600" />
+                  <h4 className="font-black text-sm uppercase text-amber-700">Inversión</h4>
+                </div>
+                <div className="flex justify-between font-black text-amber-800">
+                  <span>Total Inversión</span>
+                  <span>-{formatCurrency(selectedReport.totalInvestment)}</span>
                 </div>
               </div>
 
@@ -313,27 +330,10 @@ export default function AdminReports() {
                 </div>
               </div>
 
-              {/* Gerencia */}
-              {selectedReport.totalMgmt > 0 && (
-                <div className="bg-purple-50 rounded-2xl p-5 border border-purple-100">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Crown size={18} className="text-purple-600" />
-                    <h4 className="font-black text-sm uppercase text-purple-700">
-                      Gerencia ({selectedReport.sessions.reduce((acc, s) => acc + s.mgmtCount, 0)} órdenes)
-                    </h4>
-                  </div>
-                  <div className="flex justify-between font-bold text-purple-800">
-                    <span>Valor Registrado</span>
-                    <span>{formatCurrency(selectedReport.totalMgmt)}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Total neto */}
+              {/* Ganancia */}
               <div className="bg-gray-900 text-white rounded-2xl p-6 text-center">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Ingreso Neto</p>
-                <p className="text-sm text-gray-300 mb-3">(Para declaración de impuestos)</p>
-                <p className="text-4xl font-black">{formatCurrency(selectedReport.totalReal - selectedReport.totalExpenses)}</p>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Ganancia</p>
+                <p className="text-4xl font-black">{formatCurrency(selectedReport.profit)}</p>
               </div>
 
               {/* Turnos individuales */}
@@ -342,6 +342,7 @@ export default function AdminReports() {
                   <TrendingUp size={18} className="text-gray-400" />
                   Turnos individuales ({selectedReport.sessions.length})
                 </h4>
+
                 <div className="space-y-3">
                   {selectedReport.sessions.map((session) => (
                     <div key={session.id} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
@@ -364,38 +365,25 @@ export default function AdminReports() {
 
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-white rounded-xl p-3 border border-gray-100">
-                          <p className="text-xs text-gray-400 font-bold uppercase mb-1">Base</p>
-                          <p className="font-black text-gray-700">{formatCurrency(session.baseCash)}</p>
-                        </div>
-                        <div className="bg-white rounded-xl p-3 border border-gray-100">
-                          <p className="text-xs text-gray-400 font-bold uppercase mb-1">Ventas</p>
+                          <p className="text-xs text-gray-400 font-bold uppercase mb-1">Vendido</p>
                           <p className="font-black text-blue-600">{formatCurrency(session.totalReal)}</p>
-                          <p className="text-xs text-gray-400 font-medium">{session.realCount} órdenes</p>
                         </div>
+
+                        <div className="bg-white rounded-xl p-3 border border-gray-100">
+                          <p className="text-xs text-gray-400 font-bold uppercase mb-1">Inversión</p>
+                          <p className="font-black text-amber-600">-{formatCurrency(session.investment)}</p>
+                        </div>
+
                         <div className="bg-white rounded-xl p-3 border border-gray-100">
                           <p className="text-xs text-gray-400 font-bold uppercase mb-1">Gastos</p>
                           <p className="font-black text-red-600">-{formatCurrency(session.totalExpenses)}</p>
                         </div>
+
                         <div className="bg-white rounded-xl p-3 border border-gray-100">
-                          <p className="text-xs text-gray-400 font-bold uppercase mb-1">Neto</p>
-                          <p className="font-black text-green-600">
-                            {formatCurrency(session.baseCash + session.totalReal - session.totalExpenses)}
-                          </p>
+                          <p className="text-xs text-gray-400 font-bold uppercase mb-1">Ganancia</p>
+                          <p className="font-black text-green-600">{formatCurrency(session.profit)}</p>
                         </div>
                       </div>
-
-                      {Object.keys(session.byMethod).length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <p className="text-xs font-bold text-gray-400 uppercase mb-2">Por método</p>
-                          <div className="flex flex-wrap gap-2">
-                            {Object.values(session.byMethod).map((m, i) => (
-                              <span key={i} className="text-xs bg-white px-3 py-1 rounded-lg border border-gray-100 font-bold text-gray-600">
-                                {m.name}: {formatCurrency(m.amount)}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
 
                       {session.mgmtCount > 0 && (
                         <div className="mt-3 inline-flex items-center gap-1.5 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-black uppercase">
@@ -406,6 +394,7 @@ export default function AdminReports() {
                   ))}
                 </div>
               </div>
+
             </div>
           </div>
         </div>

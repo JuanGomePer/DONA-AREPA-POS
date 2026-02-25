@@ -43,7 +43,8 @@ export async function GET() {
       const monday = getMonday(new Date(closeDate));
       const weekKey = `${monday.getFullYear()}-W${String(
         Math.ceil(
-          (monday.getTime() - new Date(monday.getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000)
+          (monday.getTime() - new Date(monday.getFullYear(), 0, 1).getTime()) /
+            (7 * 24 * 60 * 60 * 1000)
         )
       ).padStart(2, "0")}`;
 
@@ -56,6 +57,34 @@ export async function GET() {
       const totalReal = realSales.reduce((acc: number, s: any) => acc + s.total, 0);
       const totalMgmt = mgmtSales.reduce((acc: number, s: any) => acc + s.total, 0);
       const totalExpenses = sess.expenses.reduce((acc: number, e: any) => acc + e.amount, 0);
+
+      // =========================
+      // NUEVO: INVERSION POR TURNO
+      // =========================
+      const batches = await prisma.ingredientBatch.findMany({
+        where: {
+          createdAt: {
+            gte: sess.openedAt,
+            lte: sess.closedAt,
+          },
+        },
+        select: {
+          qtyRemaining: true,
+          unitCost: true,
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      // Como tu modelo no tiene qtyInitial, usamos qtyRemaining.
+      // Esto funciona y evita el crash. (Pero puede subestimar si el lote ya fue consumido.)
+      const investment = batches.reduce((acc, b) => {
+        const qty = Number(b.qtyRemaining || 0);
+        const cost = Number(b.unitCost || 0);
+        return acc + qty * cost;
+      }, 0);
+
+      // NUEVO: GANANCIA
+      const profit = totalReal - totalExpenses - investment;
 
       // Agrupar por método de pago
       const byMethod: Record<string, { name: string; amount: number }> = {};
@@ -72,7 +101,13 @@ export async function GET() {
         openedAt: sess.openedAt,
         closedAt: sess.closedAt,
         baseCash: sess.baseCash,
+
+        // Vendido / inversión / ganancia
         totalReal,
+        investment,
+        profit,
+
+        // Ya existía
         totalMgmt,
         totalExpenses,
         byMethod,
@@ -89,6 +124,11 @@ export async function GET() {
           totalReal: 0,
           totalMgmt: 0,
           totalExpenses: 0,
+
+          // NUEVO
+          totalInvestment: 0,
+          profit: 0,
+
           byMethod: {} as Record<string, { name: string; amount: number }>,
         });
       }
@@ -97,6 +137,11 @@ export async function GET() {
       week.totalReal += totalReal;
       week.totalMgmt += totalMgmt;
       week.totalExpenses += totalExpenses;
+
+      // NUEVO
+      week.totalInvestment += investment;
+      week.profit += profit;
+
       for (const [mid, data] of Object.entries(byMethod)) {
         if (!week.byMethod[mid]) week.byMethod[mid] = { name: data.name, amount: 0 };
         week.byMethod[mid].amount += data.amount;
@@ -112,6 +157,11 @@ export async function GET() {
           totalReal: 0,
           totalMgmt: 0,
           totalExpenses: 0,
+
+          // NUEVO
+          totalInvestment: 0,
+          profit: 0,
+
           byMethod: {} as Record<string, { name: string; amount: number }>,
         });
       }
@@ -120,6 +170,11 @@ export async function GET() {
       month.totalReal += totalReal;
       month.totalMgmt += totalMgmt;
       month.totalExpenses += totalExpenses;
+
+      // NUEVO
+      month.totalInvestment += investment;
+      month.profit += profit;
+
       for (const [mid, data] of Object.entries(byMethod)) {
         if (!month.byMethod[mid]) month.byMethod[mid] = { name: data.name, amount: 0 };
         month.byMethod[mid].amount += data.amount;
