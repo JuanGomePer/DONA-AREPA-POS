@@ -3,9 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/getSession";
 
 function getMonday(d: Date) {
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff));
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(date.setDate(diff));
 }
 
 export async function GET() {
@@ -50,7 +51,8 @@ export async function GET() {
       const totalMgmt = mgmtSales.reduce((acc: number, s: any) => acc + s.total, 0);
       const totalExpenses = sess.expenses.reduce((acc: number, e: any) => acc + e.amount, 0);
 
-      // 👇 FIX: Usar qtyinitial en lugar de qtyRemaining
+      // CÁLCULO DE INVERSIÓN USANDO qtyinitial
+      // Buscamos los lotes creados durante el transcurso de esta sesión específica
       const batches = await prisma.ingredientBatch.findMany({
         where: {
           createdAt: {
@@ -59,19 +61,20 @@ export async function GET() {
           },
         },
         select: {
-          qtyinitial: true,    // 👈 CAMBIO CLAVE
+          qtyinitial: true,
           unitCost: true,
         },
       });
 
       const investment = batches.reduce((acc, b) => {
-        const qty = Number(b.qtyinitial || 0);  // 👈 Usar qtyinitial
+        const qty = Number(b.qtyinitial || 0);
         const cost = Number(b.unitCost || 0);
-        return acc + qty * cost;
+        return acc + (qty * cost);
       }, 0);
 
       const profit = totalReal - totalExpenses - investment;
 
+      // Desglose por método de pago
       const byMethod: Record<string, { name: string; amount: number }> = {};
       for (const sale of realSales) {
         if (sale.payment?.method) {
@@ -96,6 +99,7 @@ export async function GET() {
         mgmtCount: mgmtSales.length,
       };
 
+      // Agrupación Semanal
       if (!weeklyMap.has(weekKey)) {
         weeklyMap.set(weekKey, {
           weekKey,
@@ -122,6 +126,7 @@ export async function GET() {
         week.byMethod[mid].amount += data.amount;
       }
 
+      // Agrupación Mensual
       if (!monthlyMap.has(monthKey)) {
         monthlyMap.set(monthKey, {
           monthKey,

@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       await tx.ingredientBatch.create({
         data: { 
           ingredientId: ing.id, 
-          qtyinitial: stockNum,  // 👈 Guardar inicial
+          qtyinitial: stockNum,
           qtyRemaining: stockNum, 
           unitCost: 0 
         },
@@ -99,7 +99,7 @@ export async function PUT(req: NextRequest) {
       await tx.ingredientBatch.create({
         data: {
           ingredientId: ing.id,
-          qtyinitial: diff,      // 👈 Guardar inicial
+          qtyinitial: diff,
           qtyRemaining: diff,
           unitCost: currentUnitCost,
         },
@@ -107,6 +107,7 @@ export async function PUT(req: NextRequest) {
       return ing;
     }
 
+    // Si la diferencia es negativa, quitamos de los lotes empezando por el más RECIENTE (ajuste manual)
     let toRemove = -diff;
     const batches = await tx.ingredientBatch.findMany({
       where: { ingredientId: ing.id, qtyRemaining: { gt: 0 } },
@@ -117,19 +118,16 @@ export async function PUT(req: NextRequest) {
       if (toRemove <= 0) break;
       const take = Math.min(toRemove, b.qtyRemaining);
 
-      const r = await tx.ingredientBatch.updateMany({
-        where: { id: b.id, qtyRemaining: { gte: take } },
-        data: { qtyRemaining: { decrement: take } },
+      await tx.ingredientBatch.update({
+        where: { id: b.id },
+        data: { 
+            qtyRemaining: { decrement: take },
+            // En ajustes manuales negativos, también bajamos el inicial para no falsear inversión
+            qtyinitial: { decrement: take } 
+        },
       });
-      if (r.count !== 1) {
-        throw new Error("BATCH_ADJUST_CONFLICT");
-      }
 
       toRemove -= take;
-    }
-
-    if (toRemove > 1e-9) {
-      throw new Error("BATCH_ADJUST_INSUFFICIENT");
     }
 
     return ing;
@@ -185,7 +183,7 @@ export async function PATCH(req: NextRequest) {
       await tx.ingredientBatch.update({
         where: { id: lastSameCost.id },
         data: { 
-          qtyinitial: { increment: amountNum },     // 👈 Actualizar inicial también
+          qtyinitial: { increment: amountNum },
           qtyRemaining: { increment: amountNum } 
         },
       });
@@ -193,7 +191,7 @@ export async function PATCH(req: NextRequest) {
       await tx.ingredientBatch.create({
         data: { 
           ingredientId: ing.id, 
-          qtyinitial: amountNum,    // 👈 Guardar inicial
+          qtyinitial: amountNum,
           qtyRemaining: amountNum, 
           unitCost 
         },

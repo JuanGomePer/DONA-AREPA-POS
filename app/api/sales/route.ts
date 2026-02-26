@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { items, payment, isManagement = false, locator, note } = body;
+    const { items, payment, isManagement = false } = body;
 
     const activeSession = await prisma.cashSession.findFirst({
       where: { status: "OPEN" },
@@ -24,103 +24,91 @@ export async function POST(req: Request) {
 
     const dishIds = items.map((i: { dishId: string }) => i.dishId);
     
-    // 👇 TRAER RECETAS DE UNA VEZ (antes de la transacción)
     const dbDishes = await prisma.dish.findMany({
       where: { id: { in: dishIds } },
-      include: { recipe: true }, // 👈 Incluir recetas aquí
+      include: { recipe: true },
     });
 
     let totalAmount = 0;
     const itemsWithPrice = items.map((item: { dishId: string; qty: number }) => {
       const dish = dbDishes.find((d) => d.id === item.dishId);
       if (!dish) throw new Error(`Plato no encontrado: ${item.dishId}`);
-      const lineTotal = dish.price * item.qty;
-      totalAmount += lineTotal;
+      totalAmount += dish.price * item.qty;
       return { dishId: dish.id, qty: item.qty, price: dish.price };
     });
 
-    // 👇 PRE-CALCULAR todos los descuentos de inventario
+    // Calcular totales de ingredientes a descontar
     const ingredientUpdates = new Map<string, number>();
-    
     for (const item of items) {
       const dish = dbDishes.find((d) => d.id === item.dishId);
       if (dish?.recipe) {
         for (const recipeItem of dish.recipe) {
-          const currentQty = ingredientUpdates.get(recipeItem.ingredientId) || 0;
-          ingredientUpdates.set(
-            recipeItem.ingredientId,
-            currentQty + (item.qty * recipeItem.qty)
-          );
+          const current = ingredientUpdates.get(recipeItem.ingredientId) || 0;
+          ingredientUpdates.set(recipeItem.ingredientId, current + (item.qty * recipeItem.qty));
         }
       }
     }
 
-    // 👇 TRANSACCIÓN MÁS RÁPIDA (solo escrituras)
-    const sale = await prisma.$transaction(
-      async (tx) => {
-        interface SaleItem { dishId: string; qty: number; price: number; }
-        interface PaymentData { methodId: string; amount: number; cashReceived?: number | null; changeGiven?: number | null; }
-
-        const saleData: any = {
+    const sale = await prisma.$transaction(async (tx) => {
+      // 1. Crear la venta
+      const newSale = await tx.sale.create({
+        data: {
           ticketNo: nextTicketNo,
           total: totalAmount,
           sessionId: activeSession.id,
           isManagement,
           items: {
-            create: itemsWithPrice.map((it: SaleItem) => ({
+            create: itemsWithPrice.map((it: any) => ({
               dishId: it.dishId,
               qty: it.qty,
               price: it.price,
             })),
           },
-        };
-
-        // Solo crear pago si NO es orden de gerencia
-        if (!isManagement && payment?.methodId) {
-          saleData.payment = {
+          payment: (!isManagement && payment?.methodId) ? {
             create: {
               methodId: payment.methodId,
               amount: totalAmount,
               cashReceived: payment.cashReceived || null,
               changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
-            } as PaymentData,
-          };
+            }
+          } : undefined,
         }
+      });
 
-        const newSale = await tx.sale.create({ data: saleData, include: { items: true } });
+      // 2. Descontar Inventario y Lotes (FIFO)
+      for (const [ingredientId, qtyToDiscount] of ingredientUpdates.entries()) {
+        // Descuento del stock general
+        await tx.ingredient.update({
+          where: { id: ingredientId },
+          data: { stock: { decrement: qtyToDiscount } },
+        });
 
-        // 👇 BATCH UPDATE de inventario (todas las actualizaciones en paralelo)
-        if (ingredientUpdates.size > 0) {
-          const updatePromises = Array.from(ingredientUpdates.entries()).map(
-            ([ingredientId, qtyToDiscount]) =>
-              tx.ingredient.update({
-                where: { id: ingredientId },
-                data: { stock: { decrement: qtyToDiscount } },
-              })
-          );
+        // Descuento de lotes (Lo primero que entra es lo primero que sale)
+        let remaining = qtyToDiscount;
+        const batches = await tx.ingredientBatch.findMany({
+          where: { ingredientId, qtyRemaining: { gt: 0 } },
+          orderBy: { createdAt: "asc" },
+        });
+
+        for (const batch of batches) {
+          if (remaining <= 0) break;
+          const take = Math.min(batch.qtyRemaining, remaining);
           
-          await Promise.all(updatePromises);
+          await tx.ingredientBatch.update({
+            where: { id: batch.id },
+            data: { qtyRemaining: { decrement: take } },
+          });
+          remaining -= take;
         }
-
-        return newSale;
-      },
-      {
-        maxWait: 10000, // Esperar máximo 10s para iniciar
-        timeout: 20000, // Timeout total de 20s
       }
-    );
 
-    return NextResponse.json({
-      success: true,
-      saleId: sale.id,
-      ticketNo: sale.ticketNo,
-    });
+      return newSale;
+    }, { timeout: 20000 });
+
+    return NextResponse.json({ success: true, saleId: sale.id, ticketNo: sale.ticketNo });
 
   } catch (error: any) {
     console.error("ERROR_VENTA:", error);
-    return NextResponse.json(
-      { error: error.message || "Error al procesar la venta" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message || "Error al procesar" }, { status: 500 });
   }
 }
