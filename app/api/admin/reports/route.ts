@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/getSession";
 
-// Helper para obtener el lunes de una fecha
 function getMonday(d: Date) {
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // ajustar cuando es domingo
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   return new Date(d.setDate(diff));
 }
 
@@ -16,7 +15,6 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // Traer todas las sesiones cerradas con sus ventas y gastos
     const sessions = await prisma.cashSession.findMany({
       where: { status: "CLOSED" },
       include: {
@@ -31,9 +29,7 @@ export async function GET() {
       orderBy: { closedAt: "desc" },
     });
 
-    // Agrupar por semana (lunes a domingo)
     const weeklyMap = new Map<string, any>();
-    // Agrupar por mes
     const monthlyMap = new Map<string, any>();
 
     for (const sess of sessions) {
@@ -42,15 +38,11 @@ export async function GET() {
       const closeDate = new Date(sess.closedAt);
       const monday = getMonday(new Date(closeDate));
       const weekKey = `${monday.getFullYear()}-W${String(
-        Math.ceil(
-          (monday.getTime() - new Date(monday.getFullYear(), 0, 1).getTime()) /
-            (7 * 24 * 60 * 60 * 1000)
-        )
+        Math.ceil((monday.getTime() - new Date(monday.getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000))
       ).padStart(2, "0")}`;
 
       const monthKey = `${closeDate.getFullYear()}-${String(closeDate.getMonth() + 1).padStart(2, "0")}`;
 
-      // Separar ventas reales vs gerencia
       const realSales = sess.sales.filter((s: any) => !s.isManagement);
       const mgmtSales = sess.sales.filter((s: any) => s.isManagement);
 
@@ -58,9 +50,7 @@ export async function GET() {
       const totalMgmt = mgmtSales.reduce((acc: number, s: any) => acc + s.total, 0);
       const totalExpenses = sess.expenses.reduce((acc: number, e: any) => acc + e.amount, 0);
 
-      // =========================
-      // NUEVO: INVERSION POR TURNO
-      // =========================
+      // 👇 FIX: Usar qtyInitial en lugar de qtyRemaining
       const batches = await prisma.ingredientBatch.findMany({
         where: {
           createdAt: {
@@ -69,24 +59,19 @@ export async function GET() {
           },
         },
         select: {
-          qtyRemaining: true,
+          qtyInitial: true,    // 👈 CAMBIO CLAVE
           unitCost: true,
         },
-        orderBy: { createdAt: "asc" },
       });
 
-      // Como tu modelo no tiene qtyInitial, usamos qtyRemaining.
-      // Esto funciona y evita el crash. (Pero puede subestimar si el lote ya fue consumido.)
       const investment = batches.reduce((acc, b) => {
-        const qty = Number(b.qtyRemaining || 0);
+        const qty = Number(b.qtyInitial || 0);  // 👈 Usar qtyInitial
         const cost = Number(b.unitCost || 0);
         return acc + qty * cost;
       }, 0);
 
-      // NUEVO: GANANCIA
       const profit = totalReal - totalExpenses - investment;
 
-      // Agrupar por método de pago
       const byMethod: Record<string, { name: string; amount: number }> = {};
       for (const sale of realSales) {
         if (sale.payment?.method) {
@@ -101,13 +86,9 @@ export async function GET() {
         openedAt: sess.openedAt,
         closedAt: sess.closedAt,
         baseCash: sess.baseCash,
-
-        // Vendido / inversión / ganancia
         totalReal,
         investment,
         profit,
-
-        // Ya existía
         totalMgmt,
         totalExpenses,
         byMethod,
@@ -115,7 +96,6 @@ export async function GET() {
         mgmtCount: mgmtSales.length,
       };
 
-      // Agregar a semana
       if (!weeklyMap.has(weekKey)) {
         weeklyMap.set(weekKey, {
           weekKey,
@@ -124,11 +104,8 @@ export async function GET() {
           totalReal: 0,
           totalMgmt: 0,
           totalExpenses: 0,
-
-          // NUEVO
           totalInvestment: 0,
           profit: 0,
-
           byMethod: {} as Record<string, { name: string; amount: number }>,
         });
       }
@@ -137,8 +114,6 @@ export async function GET() {
       week.totalReal += totalReal;
       week.totalMgmt += totalMgmt;
       week.totalExpenses += totalExpenses;
-
-      // NUEVO
       week.totalInvestment += investment;
       week.profit += profit;
 
@@ -147,7 +122,6 @@ export async function GET() {
         week.byMethod[mid].amount += data.amount;
       }
 
-      // Agregar a mes
       if (!monthlyMap.has(monthKey)) {
         monthlyMap.set(monthKey, {
           monthKey,
@@ -157,11 +131,8 @@ export async function GET() {
           totalReal: 0,
           totalMgmt: 0,
           totalExpenses: 0,
-
-          // NUEVO
           totalInvestment: 0,
           profit: 0,
-
           byMethod: {} as Record<string, { name: string; amount: number }>,
         });
       }
@@ -170,8 +141,6 @@ export async function GET() {
       month.totalReal += totalReal;
       month.totalMgmt += totalMgmt;
       month.totalExpenses += totalExpenses;
-
-      // NUEVO
       month.totalInvestment += investment;
       month.profit += profit;
 

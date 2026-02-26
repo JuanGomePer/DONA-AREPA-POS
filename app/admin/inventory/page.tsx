@@ -36,7 +36,8 @@ export default function AdminInventory() {
   const loadData = () =>
     fetch("/api/admin/inventory")
       .then((res) => res.json())
-      .then(setIngredients);
+      .then(setIngredients)
+      .catch(err => console.error("Error loading inventory:", err));
 
   useEffect(() => {
     loadData();
@@ -75,15 +76,23 @@ export default function AdminInventory() {
     const method = editingIng ? "PUT" : "POST";
     const body = editingIng ? { ...form, id: editingIng.id } : form;
 
-    const res = await fetch("/api/admin/inventory", {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch("/api/admin/inventory", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-    if (res.ok) {
-      closeModal();
-      loadData();
+      if (res.ok) {
+        closeModal();
+        loadData();
+      } else {
+        const data = await res.json().catch(() => ({ error: "Error desconocido" }));
+        alert(data.error || "Error al guardar");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error de conexión");
     }
   };
 
@@ -92,26 +101,39 @@ export default function AdminInventory() {
     if (!editingIng) return;
 
     const amt = parseFloat(restockAmount);
-    if (!restockAmount || !Number.isFinite(amt) || amt <= 0) return;
+    if (!restockAmount || !Number.isFinite(amt) || amt <= 0) {
+      alert("Por favor ingresa una cantidad válida");
+      return;
+    }
 
-    // Si no hay producto (costo) configurado, no dejamos
     if (!unitCost(editingIng)) {
       alert("Configura el producto (precio y porciones) antes de reabastecer");
       return;
     }
 
-    const res = await fetch("/api/admin/inventory", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editingIng.id, amount: restockAmount }),
-    });
+    try {
+      const res = await fetch("/api/admin/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingIng.id, amount: restockAmount }),
+      });
 
-    if (res.ok) {
-      closeModal();
-      loadData();
-    } else {
-      const data = await res.json();
-      alert(data.error || "Error al agregar stock");
+      if (res.ok) {
+        closeModal();
+        loadData();
+      } else {
+        let errorMsg = "Error al agregar stock";
+        try {
+          const data = await res.json();
+          errorMsg = data.error || errorMsg;
+        } catch (jsonError) {
+          errorMsg = `Error ${res.status}: ${res.statusText}`;
+        }
+        alert(errorMsg);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error de conexión al agregar stock");
     }
   };
 
@@ -124,12 +146,12 @@ export default function AdminInventory() {
       if (res.ok) {
         loadData();
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({ error: "Error desconocido" }));
         alert(data.error || "Error al eliminar ingrediente");
       }
     } catch (error) {
       console.error("Error:", error);
-      alert("Error al eliminar ingrediente");
+      alert("Error de conexión");
     }
   };
 
@@ -325,7 +347,7 @@ export default function AdminInventory() {
                       </>
                     ) : (
                       <span className="text-amber-700">
-                        Falta configurar costo en <b>/admin/products</b> (si no, no podemos guardar el lote).
+                        Falta configurar costo en <b>/admin/products</b>
                       </span>
                     )}
                   </div>

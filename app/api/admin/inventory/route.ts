@@ -9,7 +9,6 @@ function asNumber(v: unknown): number {
 }
 
 function roundCost(n: number) {
-  // evita problemas de floats al comparar costos
   return Number(n.toFixed(6));
 }
 
@@ -21,7 +20,6 @@ async function requireAdmin() {
   return { ok: true as const };
 }
 
-// GET: Listar ingredientes
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.res;
@@ -34,7 +32,6 @@ export async function GET() {
   return NextResponse.json(ingredients);
 }
 
-// POST: Crear ingrediente nuevo
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.res;
@@ -50,11 +47,14 @@ export async function POST(req: NextRequest) {
       data: { name: String(name), unit: String(unit), stock: stockNum },
     });
 
-    // Si crean con stock inicial > 0, lo reflejamos como “lote” con costo 0
-    // (hasta que configures el producto/costo real). Es el mínimo para consistencia.
     if (stockNum > 0) {
       await tx.ingredientBatch.create({
-        data: { ingredientId: ing.id, qtyRemaining: stockNum, unitCost: 0 },
+        data: { 
+          ingredientId: ing.id, 
+          qtyInitial: stockNum,  // 👈 Guardar inicial
+          qtyRemaining: stockNum, 
+          unitCost: 0 
+        },
       });
     }
 
@@ -64,7 +64,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(created);
 }
 
-// PUT: Editar ingrediente (corrección directa del stock)
 export async function PUT(req: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.res;
@@ -76,14 +75,12 @@ export async function PUT(req: NextRequest) {
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    // Actualiza datos básicos + stock exacto
     const ing = await tx.ingredient.update({
       where: { id: String(id) },
       data: { name: String(name), unit: String(unit), stock: stockNum },
       include: { product: true },
     });
 
-    // Reconciliar lotes para que SUM(lotes) == stockNum
     const agg = await tx.ingredientBatch.aggregate({
       where: { ingredientId: ing.id },
       _sum: { qtyRemaining: true },
@@ -91,7 +88,6 @@ export async function PUT(req: NextRequest) {
     const sumBatches = agg._sum.qtyRemaining ?? 0;
     const diff = stockNum - sumBatches;
 
-    // costo actual (solo para ajustes positivos)
     const currentUnitCost =
       ing.product && ing.product.packQty > 0 ? roundCost(ing.product.packPrice / ing.product.packQty) : 0;
 
@@ -100,10 +96,10 @@ export async function PUT(req: NextRequest) {
     }
 
     if (diff > 0) {
-      // faltaba stock en lotes -> creamos “lote ajuste” con costo actual (o 0 si no hay producto)
       await tx.ingredientBatch.create({
         data: {
           ingredientId: ing.id,
+          qtyInitial: diff,      // 👈 Guardar inicial
           qtyRemaining: diff,
           unitCost: currentUnitCost,
         },
@@ -111,9 +107,7 @@ export async function PUT(req: NextRequest) {
       return ing;
     }
 
-    // diff < 0: sobran lotes -> quitamos desde el MÁS NUEVO (corrección física)
     let toRemove = -diff;
-
     const batches = await tx.ingredientBatch.findMany({
       where: { ingredientId: ing.id, qtyRemaining: { gt: 0 } },
       orderBy: { createdAt: "desc" },
@@ -128,7 +122,6 @@ export async function PUT(req: NextRequest) {
         data: { qtyRemaining: { decrement: take } },
       });
       if (r.count !== 1) {
-        // muy raro (concurrencia), reventamos para no dejar inconsistente
         throw new Error("BATCH_ADJUST_CONFLICT");
       }
 
@@ -136,8 +129,6 @@ export async function PUT(req: NextRequest) {
     }
 
     if (toRemove > 1e-9) {
-      // No había suficiente en lotes, dejamos consistente igual y limpiamos
-      // (esto solo pasaría si lotes estaban mal)
       throw new Error("BATCH_ADJUST_INSUFFICIENT");
     }
 
@@ -147,7 +138,6 @@ export async function PUT(req: NextRequest) {
   return NextResponse.json(updated);
 }
 
-// PATCH: Sumar stock (reabastecimiento) con costo por lote
 export async function PATCH(req: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.res;
@@ -173,15 +163,13 @@ export async function PATCH(req: NextRequest) {
 
     const unitCost = roundCost(ing.product.packPrice / ing.product.packQty);
 
-    // 1) incrementa stock total
     await tx.ingredient.update({
       where: { id: ing.id },
       data: { stock: { increment: amountNum } },
     });
 
-    // 2) Crea lote FIFO (o fusiona si mismo costo y reciente)
     const now = new Date();
-    const since = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24h
+    const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const lastSameCost = await tx.ingredientBatch.findFirst({
       where: {
@@ -196,11 +184,19 @@ export async function PATCH(req: NextRequest) {
     if (lastSameCost) {
       await tx.ingredientBatch.update({
         where: { id: lastSameCost.id },
-        data: { qtyRemaining: { increment: amountNum } },
+        data: { 
+          qtyInitial: { increment: amountNum },     // 👈 Actualizar inicial también
+          qtyRemaining: { increment: amountNum } 
+        },
       });
     } else {
       await tx.ingredientBatch.create({
-        data: { ingredientId: ing.id, qtyRemaining: amountNum, unitCost },
+        data: { 
+          ingredientId: ing.id, 
+          qtyInitial: amountNum,    // 👈 Guardar inicial
+          qtyRemaining: amountNum, 
+          unitCost 
+        },
       });
     }
 
@@ -219,7 +215,6 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json(result.updated);
 }
 
-// DELETE: Borrar ingrediente
 export async function DELETE(req: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.res;
@@ -228,6 +223,21 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "ID faltante" }, { status: 400 });
 
-  await prisma.ingredient.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  try {
+    const recipesCount = await prisma.recipeItem.count({
+      where: { ingredientId: id }
+    });
+
+    if (recipesCount > 0) {
+      return NextResponse.json({ 
+        error: "No se puede eliminar: este ingrediente está en uso en recetas de platillos" 
+      }, { status: 400 });
+    }
+
+    await prisma.ingredient.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (error: any) {
+    console.error("Error al eliminar ingrediente:", error);
+    return NextResponse.json({ error: "Error al eliminar ingrediente" }, { status: 500 });
+  }
 }

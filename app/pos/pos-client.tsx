@@ -33,10 +33,12 @@ type Report = {
 export default function PosClient({
   dishes = [],
   methods = [],
+  hasActiveSession = false,  // 👈 Agregado al parámetro
 }: {
   dishes?: Dish[];
   methods?: PaymentMethod[];
   denoms?: Denomination[];
+  hasActiveSession?: boolean;  // 👈 Agregado al tipo
 }) {
   const r = useRouter();
 
@@ -46,7 +48,7 @@ export default function PosClient({
   const [methodId, setMethodId] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionActive, setSessionActive] = useState(hasActiveSession);  // 👈 Usar el prop
   const [report, setReport] = useState<Report | null>(null);
 
   // Modals
@@ -351,20 +353,18 @@ export default function PosClient({
     <div className="h-screen bg-gray-100 flex flex-col overflow-hidden font-sans text-gray-900">
 
       {/* HEADER */}
-      
       <div className="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm z-10 shrink-0">
         <div className="flex items-center gap-4">
           <div className="bg-blue-600 p-2 rounded-lg text-white font-black">DA</div>
           <h1 className="font-bold text-xl tracking-tight hidden md:block">Dona Arepa POS</h1>
         </div>
         <div className="flex items-center gap-2">
-
           <button
-      onClick={() => r.push("/admin/inventory")}
-      className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold hover:bg-purple-100 transition-colors border border-purple-200"
-    >
-      <TrendingUp size={20} /><span className="hidden sm:inline">Admin</span>
-    </button>
+            onClick={() => r.push("/admin/inventory")}
+            className="flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold hover:bg-purple-100 transition-colors border border-purple-200"
+          >
+            <TrendingUp size={20} /><span className="hidden sm:inline">Admin</span>
+          </button>
           
           <button
             onClick={() => { fetchInventory(); setShowInventory(true); }}
@@ -526,7 +526,7 @@ export default function PosClient({
         </div>
       )}
 
-      {/* ── MODAL GASTO (solo monto) ───────────────────────────── */}
+      {/* ── MODAL GASTO ───────────────────────────────────────── */}
       {showExpenseModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-[40px] w-full max-w-sm p-8 shadow-2xl">
@@ -564,7 +564,7 @@ export default function PosClient({
         </div>
       )}
 
-      {/* ── MODAL PAGO (igual) ─────────────────────────────────── */}
+      {/* ── MODAL PAGO ─────────────────────────────────────────── */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-[40px] w-full max-w-4xl flex flex-col md:flex-row overflow-hidden shadow-2xl max-h-[90vh]">
@@ -713,12 +713,10 @@ export default function PosClient({
                   <span className="font-black text-xl">{formatCurrency(report.baseCash)}</span>
                 </div>
 
-                {/* Ventas estilo dibujo */}
+                {/* Ventas */}
                 <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100">
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-xs font-black text-blue-400 uppercase tracking-widest">
-                      Ventas
-                    </p>
+                    <p className="text-xs font-black text-blue-400 uppercase tracking-widest">Ventas</p>
                     <span className="text-sm font-black text-blue-900">{formatCurrency(report.totalSold)}</span>
                   </div>
 
