@@ -94,7 +94,7 @@ model IngredientProduct {
 model IngredientBatch {
   id           String   @id @default(cuid())
   ingredientId String
-  qtyInitial   Float
+  qtyinitial   Float
   qtyRemaining Float
   unitCost     Float
   createdAt    DateTime @default(now())
