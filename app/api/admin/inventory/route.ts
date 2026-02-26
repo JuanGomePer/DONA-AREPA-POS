@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       await tx.ingredientBatch.create({
         data: { 
           ingredientId: ing.id, 
-          qtyInitial: stockNum,  // 👈 Guardar inicial
+          qtyinitial: stockNum,  // 👈 Guardar inicial
           qtyRemaining: stockNum, 
           unitCost: 0 
         },
@@ -99,7 +99,7 @@ export async function PUT(req: NextRequest) {
       await tx.ingredientBatch.create({
         data: {
           ingredientId: ing.id,
-          qtyInitial: diff,      // 👈 Guardar inicial
+          qtyinitial: diff,      // 👈 Guardar inicial
           qtyRemaining: diff,
           unitCost: currentUnitCost,
         },
@@ -185,7 +185,7 @@ export async function PATCH(req: NextRequest) {
       await tx.ingredientBatch.update({
         where: { id: lastSameCost.id },
         data: { 
-          qtyInitial: { increment: amountNum },     // 👈 Actualizar inicial también
+          qtyinitial: { increment: amountNum },     // 👈 Actualizar inicial también
           qtyRemaining: { increment: amountNum } 
         },
       });
@@ -193,7 +193,7 @@ export async function PATCH(req: NextRequest) {
       await tx.ingredientBatch.create({
         data: { 
           ingredientId: ing.id, 
-          qtyInitial: amountNum,    // 👈 Guardar inicial
+          qtyinitial: amountNum,    // 👈 Guardar inicial
           qtyRemaining: amountNum, 
           unitCost 
         },

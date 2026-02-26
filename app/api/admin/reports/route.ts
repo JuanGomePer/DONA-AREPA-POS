@@ -50,7 +50,7 @@ export async function GET() {
       const totalMgmt = mgmtSales.reduce((acc: number, s: any) => acc + s.total, 0);
       const totalExpenses = sess.expenses.reduce((acc: number, e: any) => acc + e.amount, 0);
 
-      // 👇 FIX: Usar qtyInitial en lugar de qtyRemaining
+      // 👇 FIX: Usar qtyinitial en lugar de qtyRemaining
       const batches = await prisma.ingredientBatch.findMany({
         where: {
           createdAt: {
@@ -59,13 +59,13 @@ export async function GET() {
           },
         },
         select: {
-          qtyInitial: true,    // 👈 CAMBIO CLAVE
+          qtyinitial: true,    // 👈 CAMBIO CLAVE
           unitCost: true,
         },
       });
 
       const investment = batches.reduce((acc, b) => {
-        const qty = Number(b.qtyInitial || 0);  // 👈 Usar qtyInitial
+        const qty = Number(b.qtyinitial || 0);  // 👈 Usar qtyinitial
         const cost = Number(b.unitCost || 0);
         return acc + qty * cost;
       }, 0);
