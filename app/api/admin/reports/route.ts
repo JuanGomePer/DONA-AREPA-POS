@@ -52,7 +52,6 @@ export async function GET() {
       const totalExpenses = sess.expenses.reduce((acc: number, e: any) => acc + e.amount, 0);
 
       // CÁLCULO DE INVERSIÓN USANDO qtyinitial
-      // Buscamos los lotes creados durante el transcurso de esta sesión específica
       const batches = await prisma.ingredientBatch.findMany({
         where: {
           createdAt: {
@@ -63,9 +62,11 @@ export async function GET() {
         select: {
           qtyinitial: true,
           unitCost: true,
+          ingredientId: true, // Asegúrate de incluir el ID del ingrediente para correlacionar con las ventas
         },
       });
 
+      // Inversion calculada con los lotes
       const investment = batches.reduce((acc, b) => {
         const qty = Number(b.qtyinitial || 0);
         const cost = Number(b.unitCost || 0);
@@ -110,7 +111,7 @@ export async function GET() {
           totalExpenses: 0,
           totalInvestment: 0,
           profit: 0,
-          byMethod: {} as Record<string, { name: string; amount: number }>,
+          byMethod: {} as Record<string, { name: string; amount: number }> ,
         });
       }
       const week = weeklyMap.get(weekKey);
@@ -138,7 +139,7 @@ export async function GET() {
           totalExpenses: 0,
           totalInvestment: 0,
           profit: 0,
-          byMethod: {} as Record<string, { name: string; amount: number }>,
+          byMethod: {} as Record<string, { name: string; amount: number }> ,
         });
       }
       const month = monthlyMap.get(monthKey);
