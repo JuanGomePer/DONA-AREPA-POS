@@ -9,6 +9,50 @@ function getMonday(d: Date) {
   return new Date(date.setDate(diff));
 }
 
+// 👇 FUNCIÓN PARA CALCULAR EL COSTO DE MATERIA PRIMA DE UNA VENTA
+async function calculateSaleCost(saleItems: any[]): Promise<number> {
+  let totalCost = 0;
+
+  for (const item of saleItems) {
+    // Obtener el platillo con su receta
+    const dish = await prisma.dish.findUnique({
+      where: { id: item.dishId },
+      include: {
+        recipe: {
+          include: {
+            ingredient: {
+              include: {
+                product: true, // Necesitamos el producto para el costo
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!dish || !dish.recipe) continue;
+
+    // Por cada ingrediente en la receta
+    for (const recipeItem of dish.recipe) {
+      const ingredient = recipeItem.ingredient;
+      
+      // Calcular costo unitario actual
+      let unitCost = 0;
+      if (ingredient.product && ingredient.product.packQty > 0) {
+        unitCost = ingredient.product.packPrice / ingredient.product.packQty;
+      }
+
+      // Cantidad consumida = cantidad vendida × cantidad en receta
+      const qtyConsumed = item.qty * recipeItem.qty;
+      
+      // Costo de este ingrediente para esta venta
+      totalCost += qtyConsumed * unitCost;
+    }
+  }
+
+  return totalCost;
+}
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -21,7 +65,7 @@ export async function GET() {
       include: {
         sales: {
           include: {
-            items: { include: { dish: true } },
+            items: true, // Solo necesitamos los items
             payment: { include: { method: true } },
           },
         },
@@ -51,27 +95,18 @@ export async function GET() {
       const totalMgmt = mgmtSales.reduce((acc: number, s: any) => acc + s.total, 0);
       const totalExpenses = sess.expenses.reduce((acc: number, e: any) => acc + e.amount, 0);
 
-      // CÁLCULO DE INVERSIÓN USANDO qtyinitial
-      const batches = await prisma.ingredientBatch.findMany({
-        where: {
-          createdAt: {
-            gte: sess.openedAt,
-            lte: sess.closedAt,
-          },
-        },
-        select: {
-          qtyinitial: true,
-          unitCost: true,
-          ingredientId: true, // Asegúrate de incluir el ID del ingrediente para correlacionar con las ventas
-        },
-      });
-
-      // Inversion calculada con los lotes
-      const investment = batches.reduce((acc, b) => {
-        const qty = Number(b.qtyinitial || 0);
-        const cost = Number(b.unitCost || 0);
-        return acc + (qty * cost);
-      }, 0);
+      // 👇 CÁLCULO CORRECTO: Sumar el costo de TODAS las ventas (reales + gerencia)
+      let investment = 0;
+      
+      // Calcular costo de ventas reales
+      for (const sale of realSales) {
+        investment += await calculateSaleCost(sale.items);
+      }
+      
+      // Calcular costo de órdenes de gerencia (también consumen inventario)
+      for (const sale of mgmtSales) {
+        investment += await calculateSaleCost(sale.items);
+      }
 
       const profit = totalReal - totalExpenses - investment;
 
@@ -111,7 +146,7 @@ export async function GET() {
           totalExpenses: 0,
           totalInvestment: 0,
           profit: 0,
-          byMethod: {} as Record<string, { name: string; amount: number }> ,
+          byMethod: {} as Record<string, { name: string; amount: number }>,
         });
       }
       const week = weeklyMap.get(weekKey);
@@ -139,7 +174,7 @@ export async function GET() {
           totalExpenses: 0,
           totalInvestment: 0,
           profit: 0,
-          byMethod: {} as Record<string, { name: string; amount: number }> ,
+          byMethod: {} as Record<string, { name: string; amount: number }>,
         });
       }
       const month = monthlyMap.get(monthKey);
