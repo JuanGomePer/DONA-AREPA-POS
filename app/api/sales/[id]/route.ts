@@ -11,45 +11,20 @@ export async function GET(
 
   const { id } = await params;
 
-  // 👇 Solo traer lo que realmente necesitas
   const sale = await prisma.sale.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      ticketNo: true,
-      total: true,
-      createdAt: true,
-      isManagement: true,
-      items: {
-        select: {
-          qty: true,
-          price: true,
-          dish: {
-            select: {
-              name: true
-            }
-          }
-        }
+    where: { id: id },
+    include: {
+      items: { include: { dish: true } },
+      payment: { 
+        include: { 
+          method: true, 
+          cashLines: { include: { denomination: true } } 
+        } 
       },
-      payment: {
-        select: {
-          amount: true,
-          cashReceived: true,
-          changeGiven: true,
-          method: {
-            select: {
-              name: true,
-              isCash: true
-            }
-          }
-        }
-      }
-    }
+    },
   });
 
-  if (!sale) {
-    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
-  }
+  if (!sale) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   return NextResponse.json(sale);
 }

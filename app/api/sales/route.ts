@@ -6,10 +6,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { items, payment, isManagement = false } = body;
 
-    // 👇 Query 1: Session activa
     const activeSession = await prisma.cashSession.findFirst({
       where: { status: "OPEN" },
-      select: { id: true }, // Solo traer el ID
     });
 
     if (!activeSession) {
@@ -19,7 +17,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // 👇 Query 2: Count de ventas
     const salesInSession = await prisma.sale.count({
       where: { sessionId: activeSession.id }
     });
@@ -27,7 +24,6 @@ export async function POST(req: Request) {
 
     const dishIds = items.map((i: { dishId: string }) => i.dishId);
     
-    // 👇 Query 3: Platillos con recetas
     const dbDishes = await prisma.dish.findMany({
       where: { id: { in: dishIds } },
       include: { recipe: true },
@@ -41,7 +37,7 @@ export async function POST(req: Request) {
       return { dishId: dish.id, qty: item.qty, price: dish.price };
     });
 
-    // 👇 PRE-CALCULAR descuentos de ingredientes
+    // Calcular totales de ingredientes a descontar
     const ingredientUpdates = new Map<string, number>();
     for (const item of items) {
       const dish = dbDishes.find((d) => d.id === item.dishId);
@@ -53,7 +49,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 👇 Query 4: Traer TODOS los batches necesarios DE UNA VEZ
+    // 👇 OPTIMIZACIÓN: Traer TODOS los batches ANTES de la transacción
     const ingredientIds = Array.from(ingredientUpdates.keys());
     const allBatches = await prisma.ingredientBatch.findMany({
       where: { 
@@ -62,11 +58,11 @@ export async function POST(req: Request) {
       },
       orderBy: [
         { ingredientId: 'asc' },
-        { createdAt: 'asc' } // FIFO por ingrediente
+        { createdAt: 'asc' }
       ],
     });
 
-    // 👇 Agrupar batches por ingrediente
+    // Agrupar batches por ingrediente para acceso rápido
     const batchesByIngredient = new Map<string, typeof allBatches>();
     for (const batch of allBatches) {
       if (!batchesByIngredient.has(batch.ingredientId)) {
@@ -75,97 +71,77 @@ export async function POST(req: Request) {
       batchesByIngredient.get(batch.ingredientId)!.push(batch);
     }
 
-    // 👇 Pre-calcular TODOS los updates de batches
-    const batchUpdates: { id: string; newQty: number }[] = [];
-    
-    for (const [ingredientId, qtyToDiscount] of ingredientUpdates.entries()) {
-      const batches = batchesByIngredient.get(ingredientId) || [];
-      let remaining = qtyToDiscount;
-
-      for (const batch of batches) {
-        if (remaining <= 0) break;
-        const take = Math.min(batch.qtyRemaining, remaining);
-        
-        batchUpdates.push({
-          id: batch.id,
-          newQty: batch.qtyRemaining - take
-        });
-        
-        remaining -= take;
-      }
-    }
-
-    // 👇 TRANSACCIÓN SUPER RÁPIDA (solo escrituras, sin queries)
-    const sale = await prisma.$transaction(
-      async (tx) => {
-        // 1. Crear venta (1 query)
-        const newSale = await tx.sale.create({
-          data: {
-            ticketNo: nextTicketNo,
-            total: totalAmount,
-            sessionId: activeSession.id,
-            isManagement,
-            items: {
-              create: itemsWithPrice.map((it: any) => ({
-                dishId: it.dishId,
-                qty: it.qty,
-                price: it.price,
-              })),
-            },
-            payment: (!isManagement && payment?.methodId) ? {
-              create: {
-                methodId: payment.methodId,
-                amount: totalAmount,
-                cashReceived: payment.cashReceived || null,
-                changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
-              }
-            } : undefined,
+    const sale = await prisma.$transaction(async (tx) => {
+      // 1. Crear la venta
+      const newSale = await tx.sale.create({
+        data: {
+          ticketNo: nextTicketNo,
+          total: totalAmount,
+          sessionId: activeSession.id,
+          isManagement,
+          items: {
+            create: itemsWithPrice.map((it: any) => ({
+              dishId: it.dishId,
+              qty: it.qty,
+              price: it.price,
+            })),
           },
-          select: { id: true, ticketNo: true } // Solo traer lo necesario
-        });
+          payment: (!isManagement && payment?.methodId) ? {
+            create: {
+              methodId: payment.methodId,
+              amount: totalAmount,
+              cashReceived: payment.cashReceived || null,
+              changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
+            }
+          } : undefined,
+        }
+      });
 
-        // 2. Descontar stocks de ingredientes EN PARALELO (1 query por ingrediente en paralelo)
-        const ingredientUpdatePromises = Array.from(ingredientUpdates.entries()).map(
-          ([ingredientId, qty]) => 
-            tx.ingredient.update({
-              where: { id: ingredientId },
-              data: { stock: { decrement: qty } },
-            })
+      // 2. Descontar Inventario y Lotes (FIFO) - OPTIMIZADO SIN QUERIES
+      const ingredientUpdatePromises = [];
+      const batchUpdatePromises = [];
+
+      for (const [ingredientId, qtyToDiscount] of ingredientUpdates.entries()) {
+        // Descuento del stock general
+        ingredientUpdatePromises.push(
+          tx.ingredient.update({
+            where: { id: ingredientId },
+            data: { stock: { decrement: qtyToDiscount } },
+          })
         );
 
-        // 3. Actualizar batches EN PARALELO (1 query por batch en paralelo)
-        const batchUpdatePromises = batchUpdates.map(
-          ({ id, newQty }) =>
+        // Descuento de lotes FIFO usando los batches pre-cargados
+        let remaining = qtyToDiscount;
+        const batches = batchesByIngredient.get(ingredientId) || [];
+
+        for (const batch of batches) {
+          if (remaining <= 0) break;
+          const take = Math.min(batch.qtyRemaining, remaining);
+          
+          batchUpdatePromises.push(
             tx.ingredientBatch.update({
-              where: { id },
-              data: { qtyRemaining: newQty },
+              where: { id: batch.id },
+              data: { qtyRemaining: { decrement: take } },
             })
-        );
-
-        // 4. Ejecutar TODO en paralelo
-        await Promise.all([
-          ...ingredientUpdatePromises,
-          ...batchUpdatePromises
-        ]);
-
-        return newSale;
-      },
-      { 
-        maxWait: 5000,
-        timeout: 10000
+          );
+          
+          remaining -= take;
+        }
       }
-    );
 
-    return NextResponse.json({ 
-      success: true, 
-      saleId: sale.id, 
-      ticketNo: sale.ticketNo 
+      // 👇 OPTIMIZACIÓN: Ejecutar todos los updates EN PARALELO
+      await Promise.all([...ingredientUpdatePromises, ...batchUpdatePromises]);
+
+      return newSale;
+    }, { 
+      maxWait: 5000,
+      timeout: 10000 
     });
+
+    return NextResponse.json({ success: true, saleId: sale.id, ticketNo: sale.ticketNo });
 
   } catch (error: any) {
     console.error("ERROR_VENTA:", error);
-    return NextResponse.json({ 
-      error: error.message || "Error al procesar" 
-    }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Error al procesar" }, { status: 500 });
   }
 }
