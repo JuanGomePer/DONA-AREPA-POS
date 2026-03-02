@@ -174,49 +174,56 @@ export default function PosClient({
 
   // ─── Pago ─────────────────────────────────────────────────────
   async function pay() {
-    setErr(null);
-    if (!locator.trim()) { setErr("Por favor asigna un localizador."); return; }
+  setErr(null);
+  if (!locator.trim()) { setErr("Por favor asigna un localizador."); return; }
 
+  if (!isManagement) {
+    const cashReceived = selectedMethod?.isCash ? Number(cashInput) : null;
+    if (selectedMethod?.isCash && (!cashReceived || cashReceived < total)) {
+      setErr("Efectivo insuficiente."); return;
+    }
+  }
+
+  setLoading(true);
+  try {
+    const body: any = {
+      items: cartItems.map((it) => ({ dishId: it.dishId, qty: it.qty })),
+      locator,
+      note: orderNote,
+      isManagement,
+    };
     if (!isManagement) {
-      const cashReceived = selectedMethod?.isCash ? Number(cashInput) : null;
-      if (selectedMethod?.isCash && (!cashReceived || cashReceived < total)) {
-        setErr("Efectivo insuficiente."); return;
-      }
+      body.payment = {
+        methodId,
+        cashReceived: selectedMethod?.isCash ? Number(cashInput) : null,
+      };
     }
 
-    setLoading(true);
-    try {
-      const body: any = {
-        items: cartItems.map((it) => ({ dishId: it.dishId, qty: it.qty })),
-        locator,
-        note: orderNote,
-        isManagement,
-      };
-      if (!isManagement) {
-        body.payment = {
-          methodId,
-          cashReceived: selectedMethod?.isCash ? Number(cashInput) : null,
-        };
-      }
+    const res = await fetch("/api/sales", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Error en venta");
 
-      const res = await fetch("/api/sales", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error en venta");
-
-      const params = new URLSearchParams({
-        loc: locator,
-        note: orderNote,
-        ...(isManagement && { management: "1" }),
-      });
-      r.push(`/receipt/${data.saleId}?${params.toString()}`);
-    } catch (e: any) {
-      setErr(e.message);
-    } finally { setLoading(false); }
-  }
+    // 👇 Pasar los datos completos via state para evitar otro fetch
+    const params = new URLSearchParams({
+      loc: locator,
+      note: orderNote,
+      ...(isManagement && { management: "1" }),
+      // 👇 Indicar que ya tenemos los datos
+      prefetched: "1"
+    });
+    
+    // 👇 Guardar en sessionStorage para acceso rápido
+    sessionStorage.setItem(`sale_${data.saleId}`, JSON.stringify(data.sale));
+    
+    r.push(`/receipt/${data.saleId}?${params.toString()}`);
+  } catch (e: any) {
+    setErr(e.message);
+  } finally { setLoading(false); }
+}
 
   // ─── Imprimir ─────────────────────────────────────────────────
   const printReport = () => {

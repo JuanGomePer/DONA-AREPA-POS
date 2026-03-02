@@ -34,10 +34,9 @@ export async function POST(req: Request) {
       const dish = dbDishes.find((d) => d.id === item.dishId);
       if (!dish) throw new Error(`Plato no encontrado: ${item.dishId}`);
       totalAmount += dish.price * item.qty;
-      return { dishId: dish.id, qty: item.qty, price: dish.price };
+      return { dishId: dish.id, qty: item.qty, price: dish.price, dishName: dish.name };
     });
 
-    // Calcular totales de ingredientes a descontar
     const ingredientUpdates = new Map<string, number>();
     for (const item of items) {
       const dish = dbDishes.find((d) => d.id === item.dishId);
@@ -49,9 +48,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // 👇 OPTIMIZACIÓN: Traer TODOS los batches ANTES de la transacción
     const ingredientIds = Array.from(ingredientUpdates.keys());
-    const allBatches = await prisma.ingredientBatch.findMany({
+    const allBatches = ingredientIds.length > 0 ? await prisma.ingredientBatch.findMany({
       where: { 
         ingredientId: { in: ingredientIds },
         qtyRemaining: { gt: 0 }
@@ -60,9 +58,8 @@ export async function POST(req: Request) {
         { ingredientId: 'asc' },
         { createdAt: 'asc' }
       ],
-    });
+    }) : [];
 
-    // Agrupar batches por ingrediente para acceso rápido
     const batchesByIngredient = new Map<string, typeof allBatches>();
     for (const batch of allBatches) {
       if (!batchesByIngredient.has(batch.ingredientId)) {
@@ -72,7 +69,6 @@ export async function POST(req: Request) {
     }
 
     const sale = await prisma.$transaction(async (tx) => {
-      // 1. Crear la venta
       const newSale = await tx.sale.create({
         data: {
           ticketNo: nextTicketNo,
@@ -94,15 +90,14 @@ export async function POST(req: Request) {
               changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
             }
           } : undefined,
-        }
+        },
+        select: { id: true, ticketNo: true, createdAt: true } // Solo lo mínimo
       });
 
-      // 2. Descontar Inventario y Lotes (FIFO) - OPTIMIZADO SIN QUERIES
       const ingredientUpdatePromises = [];
       const batchUpdatePromises = [];
 
       for (const [ingredientId, qtyToDiscount] of ingredientUpdates.entries()) {
-        // Descuento del stock general
         ingredientUpdatePromises.push(
           tx.ingredient.update({
             where: { id: ingredientId },
@@ -110,7 +105,6 @@ export async function POST(req: Request) {
           })
         );
 
-        // Descuento de lotes FIFO usando los batches pre-cargados
         let remaining = qtyToDiscount;
         const batches = batchesByIngredient.get(ingredientId) || [];
 
@@ -129,7 +123,6 @@ export async function POST(req: Request) {
         }
       }
 
-      // 👇 OPTIMIZACIÓN: Ejecutar todos los updates EN PARALELO
       await Promise.all([...ingredientUpdatePromises, ...batchUpdatePromises]);
 
       return newSale;
@@ -138,7 +131,40 @@ export async function POST(req: Request) {
       timeout: 10000 
     });
 
-    return NextResponse.json({ success: true, saleId: sale.id, ticketNo: sale.ticketNo });
+    // 👇 Obtener método de pago si existe
+    let paymentMethod = null;
+    if (!isManagement && payment?.methodId) {
+      paymentMethod = await prisma.paymentMethod.findUnique({
+        where: { id: payment.methodId },
+        select: { name: true, isCash: true }
+      });
+    }
+
+    // 👇 RETORNAR TODOS LOS DATOS NECESARIOS PARA EL RECIBO
+    return NextResponse.json({ 
+      success: true, 
+      saleId: sale.id, 
+      ticketNo: sale.ticketNo,
+      // 👇 Datos completos del recibo
+      sale: {
+        id: sale.id,
+        ticketNo: sale.ticketNo,
+        total: totalAmount,
+        createdAt: sale.createdAt,
+        isManagement,
+        items: itemsWithPrice.map((it: any) => ({
+          qty: it.qty,
+          price: it.price,
+          dish: { name: it.dishName }
+        })),
+        payment: (!isManagement && payment?.methodId) ? {
+          amount: totalAmount,
+          cashReceived: payment.cashReceived || null,
+          changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
+          method: paymentMethod
+        } : null
+      }
+    });
 
   } catch (error: any) {
     console.error("ERROR_VENTA:", error);

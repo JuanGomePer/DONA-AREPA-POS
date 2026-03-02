@@ -20,10 +20,33 @@ export default function ReceiptPage(props: { params: Params; searchParams: Searc
   const isManagement = searchParams.management === "1";
 
   useEffect(() => {
+    // 👇 OPTIMIZACIÓN: Intentar leer de sessionStorage primero
+    const cached = sessionStorage.getItem(`sale_${params.id}`);
+    
+    if (cached) {
+      // Datos pre-cargados desde el POST
+      try {
+        const saleData = JSON.parse(cached);
+        setSale(saleData);
+        setLoading(false);
+        sessionStorage.removeItem(`sale_${params.id}`); // Limpiar cache
+        return;
+      } catch (e) {
+        console.error("Error parsing cached sale:", e);
+      }
+    }
+
+    // Si no hay cache, hacer fetch normal
     fetch(`/api/sales/${params.id}`)
       .then((res) => res.json())
-      .then((data) => { setSale(data); setLoading(false); })
-      .catch((err) => console.error("Error cargando venta:", err));
+      .then((data) => { 
+        setSale(data); 
+        setLoading(false); 
+      })
+      .catch((err) => {
+        console.error("Error cargando venta:", err);
+        setLoading(false);
+      });
   }, [params.id]);
 
   if (loading) {
