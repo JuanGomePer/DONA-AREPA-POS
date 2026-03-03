@@ -33,12 +33,12 @@ type Report = {
 export default function PosClient({
   dishes = [],
   methods = [],
-  hasActiveSession = false,  // 👈 Agregado al parámetro
+  hasActiveSession = false,
 }: {
   dishes?: Dish[];
   methods?: PaymentMethod[];
   denoms?: Denomination[];
-  hasActiveSession?: boolean;  // 👈 Agregado al tipo
+  hasActiveSession?: boolean;
 }) {
   const r = useRouter();
 
@@ -48,7 +48,7 @@ export default function PosClient({
   const [methodId, setMethodId] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [sessionActive, setSessionActive] = useState(hasActiveSession);  // 👈 Usar el prop
+  const [sessionActive, setSessionActive] = useState(hasActiveSession);
   const [report, setReport] = useState<Report | null>(null);
 
   // Modals
@@ -63,7 +63,8 @@ export default function PosClient({
 
   // Pago
   const [cashInput, setCashInput] = useState("");
-  const [locator, setLocator] = useState("");
+  const [locator, setLocator] = useState(1);
+  const [lastUsedLocator, setLastUsedLocator] = useState(0);
   const [orderNote, setOrderNote] = useState("");
   const [isManagement, setIsManagement] = useState(false);
 
@@ -174,56 +175,53 @@ export default function PosClient({
 
   // ─── Pago ─────────────────────────────────────────────────────
   async function pay() {
-  setErr(null);
-  if (!locator.trim()) { setErr("Por favor asigna un localizador."); return; }
+    setErr(null);
 
-  if (!isManagement) {
-    const cashReceived = selectedMethod?.isCash ? Number(cashInput) : null;
-    if (selectedMethod?.isCash && (!cashReceived || cashReceived < total)) {
-      setErr("Efectivo insuficiente."); return;
-    }
-  }
-
-  setLoading(true);
-  try {
-    const body: any = {
-      items: cartItems.map((it) => ({ dishId: it.dishId, qty: it.qty })),
-      locator,
-      note: orderNote,
-      isManagement,
-    };
     if (!isManagement) {
-      body.payment = {
-        methodId,
-        cashReceived: selectedMethod?.isCash ? Number(cashInput) : null,
-      };
+      const cashReceived = selectedMethod?.isCash ? Number(cashInput) : null;
+      if (selectedMethod?.isCash && (!cashReceived || cashReceived < total)) {
+        setErr("Efectivo insuficiente."); return;
+      }
     }
 
-    const res = await fetch("/api/sales", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Error en venta");
+    setLoading(true);
+    try {
+      const body: any = {
+        items: cartItems.map((it) => ({ dishId: it.dishId, qty: it.qty })),
+        locator: locator.toString(),
+        note: orderNote,
+        isManagement,
+      };
+      if (!isManagement) {
+        body.payment = {
+          methodId,
+          cashReceived: selectedMethod?.isCash ? Number(cashInput) : null,
+        };
+      }
 
-    // 👇 Pasar los datos completos via state para evitar otro fetch
-    const params = new URLSearchParams({
-      loc: locator,
-      note: orderNote,
-      ...(isManagement && { management: "1" }),
-      // 👇 Indicar que ya tenemos los datos
-      prefetched: "1"
-    });
-    
-    // 👇 Guardar en sessionStorage para acceso rápido
-    sessionStorage.setItem(`sale_${data.saleId}`, JSON.stringify(data.sale));
-    
-    r.push(`/receipt/${data.saleId}?${params.toString()}`);
-  } catch (e: any) {
-    setErr(e.message);
-  } finally { setLoading(false); }
-}
+      const res = await fetch("/api/sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error en venta");
+
+      if (data.sale) {
+        sessionStorage.setItem(`sale_${data.saleId}`, JSON.stringify(data.sale));
+      }
+
+      const params = new URLSearchParams({
+        loc: locator.toString(),
+        note: orderNote,
+        ...(isManagement && { management: "1" }),
+      });
+      
+      r.push(`/receipt/${data.saleId}?${params.toString()}`);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally { setLoading(false); }
+  }
 
   // ─── Imprimir ─────────────────────────────────────────────────
   const printReport = () => {
@@ -486,7 +484,17 @@ export default function PosClient({
             </div>
             <button
               disabled={cartItems.length === 0}
-              onClick={() => { setCashInput(""); setLocator(""); setOrderNote(""); setIsManagement(false); setShowPaymentModal(true); }}
+              onClick={() => { 
+                setCashInput(""); 
+                setOrderNote(""); 
+                setIsManagement(false); 
+                
+                const nextLocator = lastUsedLocator >= 12 ? 1 : lastUsedLocator + 1;
+                setLocator(nextLocator);
+                setLastUsedLocator(nextLocator);
+                
+                setShowPaymentModal(true); 
+              }}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 text-white py-5 rounded-2xl text-2xl font-black transition-all shadow-lg active:scale-95"
             >
               COBRAR
@@ -581,14 +589,49 @@ export default function PosClient({
 
               <div className="space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-white p-4 rounded-2xl border shadow-sm">
-                    <label className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase mb-2"><MapPin size={14} /> Localizador *</label>
-                    <input
-                      type="number" placeholder="" value={locator}
-                      onChange={e => setLocator(e.target.value)}
-                      className="w-full p-3 bg-gray-50 border rounded-xl font-black text-2xl outline-none focus:border-blue-500"
-                    />
+                  {/* LOCALIZADOR CON CONTADOR */}
+                  <div className="bg-white p-6 rounded-2xl border-2 border-blue-200 shadow-sm">
+                    <label className="flex items-center justify-center gap-2 text-xs font-black text-gray-400 uppercase mb-3">
+                      <MapPin size={14} /> Localizador
+                    </label>
+                    
+                    <div className="text-center mb-4">
+                      <div className="text-8xl font-black text-blue-600">{locator}</div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newLocator = locator <= 1 ? 12 : locator - 1;
+                          setLocator(newLocator);
+                          setLastUsedLocator(newLocator);
+                        }}
+                        className="flex items-center justify-center gap-2 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-black text-gray-700 transition-colors active:scale-95"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                        ANTERIOR
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newLocator = locator >= 12 ? 1 : locator + 1;
+                          setLocator(newLocator);
+                          setLastUsedLocator(newLocator);
+                        }}
+                        className="flex items-center justify-center gap-2 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-black transition-colors active:scale-95"
+                      >
+                        SIGUIENTE
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
+
                   <div className="bg-white p-4 rounded-2xl border shadow-sm">
                     <label className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase mb-2"><FileText size={14} /> Notas de Orden</label>
                     <input
