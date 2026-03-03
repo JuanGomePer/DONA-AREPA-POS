@@ -599,37 +599,35 @@ export default function PosClient({
                       <div className="text-8xl font-black text-blue-600">{locator}</div>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newLocator = locator <= 1 ? 12 : locator - 1;
-                          setLocator(newLocator);
-                          setLastUsedLocator(newLocator);
-                        }}
-                        className="flex items-center justify-center gap-2 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-black text-gray-700 transition-colors active:scale-95"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="15 18 9 12 15 6"></polyline>
-                        </svg>
-                        ANTERIOR
-                      </button>
-                      
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newLocator = locator >= 12 ? 1 : locator + 1;
-                          setLocator(newLocator);
-                          setLastUsedLocator(newLocator);
-                        }}
-                        className="flex items-center justify-center gap-2 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-black transition-colors active:scale-95"
-                      >
-                        SIGUIENTE
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="9 18 15 12 9 6"></polyline>
-                        </svg>
-                      </button>
-                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+  <button
+    type="button"
+    onClick={() => {
+      const newLocator = locator <= 1 ? 12 : locator - 1;
+      setLocator(newLocator);
+      setLastUsedLocator(newLocator);
+    }}
+    className="flex items-center justify-center py-5 bg-gray-100 hover:bg-gray-200 rounded-2xl text-gray-700 transition-colors active:scale-95"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6"></polyline>
+    </svg>
+  </button>
+  
+  <button
+    type="button"
+    onClick={() => {
+      const newLocator = locator >= 12 ? 1 : locator + 1;
+      setLocator(newLocator);
+      setLastUsedLocator(newLocator);
+    }}
+    className="flex items-center justify-center py-5 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl transition-colors active:scale-95"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </button>
+</div>
                   </div>
 
                   <div className="bg-white p-4 rounded-2xl border shadow-sm">
