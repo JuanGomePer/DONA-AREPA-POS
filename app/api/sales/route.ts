@@ -68,38 +68,50 @@ export async function POST(req: Request) {
       batchesByIngredient.get(batch.ingredientId)!.push(batch);
     }
 
-    const sale = await prisma.$transaction(async (tx) => {
-      const newSale = await tx.sale.create({
-        data: {
-          ticketNo: nextTicketNo,
-          total: totalAmount,
-          sessionId: activeSession.id,
-          isManagement,
-          items: {
-            create: itemsWithPrice.map((it: any) => ({
-              dishId: it.dishId,
-              qty: it.qty,
-              price: it.price,
-            })),
+    // 👇 TRANSACCIÓN ULTRA RÁPIDA - SOLO CREAR VENTA
+    const sale = await prisma.$transaction(
+      async (tx) => {
+        const newSale = await tx.sale.create({
+          data: {
+            ticketNo: nextTicketNo,
+            total: totalAmount,
+            sessionId: activeSession.id,
+            isManagement,
+            items: {
+              create: itemsWithPrice.map((it: any) => ({
+                dishId: it.dishId,
+                qty: it.qty,
+                price: it.price,
+              })),
+            },
+            payment: (!isManagement && payment?.methodId) ? {
+              create: {
+                methodId: payment.methodId,
+                amount: totalAmount,
+                cashReceived: payment.cashReceived || null,
+                changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
+              }
+            } : undefined,
           },
-          payment: (!isManagement && payment?.methodId) ? {
-            create: {
-              methodId: payment.methodId,
-              amount: totalAmount,
-              cashReceived: payment.cashReceived || null,
-              changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
-            }
-          } : undefined,
-        },
-        select: { id: true, ticketNo: true, createdAt: true } // Solo lo mínimo
-      });
+          select: { id: true, ticketNo: true, createdAt: true }
+        });
 
+        return newSale;
+      },
+      { 
+        maxWait: 3000,
+        timeout: 5000 // Solo 5 segundos porque solo crea la venta
+      }
+    );
+
+    // 👇 DESCUENTOS DE INVENTARIO FUERA DE LA TRANSACCIÓN (en paralelo)
+    try {
       const ingredientUpdatePromises = [];
       const batchUpdatePromises = [];
 
       for (const [ingredientId, qtyToDiscount] of ingredientUpdates.entries()) {
         ingredientUpdatePromises.push(
-          tx.ingredient.update({
+          prisma.ingredient.update({
             where: { id: ingredientId },
             data: { stock: { decrement: qtyToDiscount } },
           })
@@ -113,7 +125,7 @@ export async function POST(req: Request) {
           const take = Math.min(batch.qtyRemaining, remaining);
           
           batchUpdatePromises.push(
-            tx.ingredientBatch.update({
+            prisma.ingredientBatch.update({
               where: { id: batch.id },
               data: { qtyRemaining: { decrement: take } },
             })
@@ -124,14 +136,12 @@ export async function POST(req: Request) {
       }
 
       await Promise.all([...ingredientUpdatePromises, ...batchUpdatePromises]);
+    } catch (inventoryError) {
+      // Si falla el descuento de inventario, loguear pero NO fallar la venta
+      console.error("ERROR_DESCUENTO_INVENTARIO (venta ya registrada):", inventoryError);
+    }
 
-      return newSale;
-    }, { 
-      maxWait: 5000,
-      timeout: 10000 
-    });
-
-    // 👇 Obtener método de pago si existe
+    // Obtener método de pago si existe
     let paymentMethod = null;
     if (!isManagement && payment?.methodId) {
       paymentMethod = await prisma.paymentMethod.findUnique({
@@ -140,12 +150,11 @@ export async function POST(req: Request) {
       });
     }
 
-    // 👇 RETORNAR TODOS LOS DATOS NECESARIOS PARA EL RECIBO
+    // 👇 RETORNAR DATOS COMPLETOS PARA EVITAR SEGUNDO FETCH
     return NextResponse.json({ 
       success: true, 
       saleId: sale.id, 
       ticketNo: sale.ticketNo,
-      // 👇 Datos completos del recibo
       sale: {
         id: sale.id,
         ticketNo: sale.ticketNo,
