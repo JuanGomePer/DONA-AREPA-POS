@@ -7,6 +7,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   STARTER: "Entrada",
   MAIN:    "Plato Fuerte",
   DRINK:   "Bebida",
+  ADDON:   "Adiciones",
 };
 
 export default function AdminDishes() {
@@ -72,6 +73,7 @@ export default function AdminDishes() {
     switch(cat) {
       case "STARTER": return <Soup size={18} className="text-orange-500"/>;
       case "DRINK":   return <Coffee size={18} className="text-purple-500"/>;
+      case "ADDON": return <Plus size={18} className="text-green-500"/>;
       default:        return <UtensilsCrossed size={18} className="text-blue-500"/>;
     }
   };
@@ -108,6 +110,7 @@ export default function AdminDishes() {
                   <option value="STARTER">Entrada</option>   {/* 👈 value = enum */}
                   <option value="MAIN">Plato Fuerte</option>
                   <option value="DRINK">Bebida</option>
+                  <option value="ADDON">Extra</option>
                 </select>
               </div>
             </div>

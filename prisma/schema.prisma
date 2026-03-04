@@ -199,6 +199,7 @@ enum DishCategory {
   STARTER // Entrada
   MAIN // Plato Fuerte
   DRINK // Bebida
+  ADDON // Adiciones
 }
 
 model CashExpense {

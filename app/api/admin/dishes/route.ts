@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/requireSession";
 
 // Sin importar DishCategory — usamos los strings del enum directamente
-const VALID_CATEGORIES = ["STARTER", "MAIN", "DRINK"] as const;
+const VALID_CATEGORIES = ["STARTER", "MAIN", "DRINK", "ADDON"] as const;
 type CategoryKey = typeof VALID_CATEGORIES[number];
 
 const toCategoryEnum = (cat: string): CategoryKey => {
