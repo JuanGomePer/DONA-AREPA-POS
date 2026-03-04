@@ -8,7 +8,7 @@ import {
   Coffee, UtensilsCrossed, Soup, Delete, Package, MinusCircle, Printer, Crown, TrendingUp
 } from "lucide-react";
 
-type Dish = { id: string; name: string; price: number; enabled: boolean; category: "STARTER" | "MAIN" | "DRINK" };
+type Dish = { id: string; name: string; price: number; enabled: boolean; category: "STARTER" | "MAIN" | "DRINK" | "ADDON"};
 type PaymentMethod = { id: string; name: string; enabled: boolean; isCash: boolean };
 type Denomination = { id: string; type: string; value: number; enabled: boolean };
 type Ingredient = { id: string; name: string; unit: string; stock: number };
