@@ -25,7 +25,7 @@ export async function GET() {
 
     const byMethod: Record<string, { name: string; amount: number; isCash: boolean }> = {};
     for (const s of regularSales) {
-      if (s.payment) {
+      if (s.payments) {
         const mid = s.payment.methodId;
         if (!byMethod[mid]) {
           byMethod[mid] = {
