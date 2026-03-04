@@ -16,7 +16,7 @@ export async function GET() {
           orderBy: { createdAt: "desc" },
           include: {
             items: { include: { dish: true } },
-            payment: { include: { method: true } },
+            payments: { include: { method: true } },
           },
         },
       },
