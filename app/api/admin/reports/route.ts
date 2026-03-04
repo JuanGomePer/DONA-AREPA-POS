@@ -66,7 +66,7 @@ export async function GET() {
         sales: {
           include: {
             items: true, // Solo necesitamos los items
-            payment: { include: { method: true } },
+            payments: { include: { method: true } },
           },
         },
         expenses: true,
