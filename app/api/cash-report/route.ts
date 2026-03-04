@@ -12,7 +12,7 @@ export async function GET() {
             items: { include: { dish: true } },
           },
         },
-        expenses: { orderBy: { createdAt: "asc" } }, // se mantiene para sumar total gasto
+        expenses: { orderBy: { createdAt: "asc" } },
       },
     });
 
@@ -23,18 +23,19 @@ export async function GET() {
 
     const totalSold = regularSales.reduce((acc: number, s: any) => acc + s.total, 0);
 
+    // ✅ Iteramos TODOS los payments de cada venta (multi-método)
     const byMethod: Record<string, { name: string; amount: number; isCash: boolean }> = {};
     for (const s of regularSales) {
-      if (s.payments) {
-        const mid = s.payment.methodId;
-        if (!byMethod[mid]) {
-          byMethod[mid] = {
-            name: s.payment.method.name,
+      for (const p of s.payments ?? []) {
+        if (!p.method) continue;
+        if (!byMethod[p.methodId]) {
+          byMethod[p.methodId] = {
+            name: p.method.name,
             amount: 0,
-            isCash: !!s.payment.method.isCash,
+            isCash: !!p.method.isCash,
           };
         }
-        byMethod[mid].amount += s.payment.amount;
+        byMethod[p.methodId].amount += p.amount;
       }
     }
 
@@ -51,7 +52,6 @@ export async function GET() {
 
         byMethod,
 
-        // ya no usamos la lista en UI, pero la dejamos por si quieres auditoría
         expenses: activeSession.expenses,
         totalExpenses,
 
@@ -114,7 +114,6 @@ export async function POST(req: Request) {
         data: {
           sessionId: active.id,
           amount,
-          // 🔥 ya no pedimos descripción: la dejamos fija
           description: "Gasto",
         },
       });

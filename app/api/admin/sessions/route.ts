@@ -16,6 +16,7 @@ export async function GET() {
           orderBy: { createdAt: "desc" },
           include: {
             items: { include: { dish: true } },
+            // ✅ payments en plural (schema nuevo)
             payments: { include: { method: true } },
           },
         },
@@ -35,16 +36,9 @@ export async function GET() {
         closedAt: cs.closedAt,
         status: cs.status,
         baseCash: cs.baseCash,
-
-        // ✅ para el admin: total recaudado SOLO de ventas reales
         totalReal,
-
-        // ✅ listas separadas para mostrar
         salesReal,
         salesManagement,
-
-        // (opcional) si quieres mantenerlo por compatibilidad/debug
-        // sales,
       };
     });
 

@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/requireSession";
 
 export async function GET(
-  req: NextRequest, 
-  { params }: { params: Promise<{ id: string }> } 
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { error } = await requireSession(req);
   if (error) return error;
@@ -12,14 +12,14 @@ export async function GET(
   const { id } = await params;
 
   const sale = await prisma.sale.findUnique({
-    where: { id: id },
+    where: { id },
     include: {
       items: { include: { dish: true } },
-      payment: { 
-        include: { 
-          method: true, 
-          cashLines: { include: { denomination: true } } 
-        } 
+      payments: {
+        include: {
+          method: true,
+          cashLines: { include: { denomination: true } },
+        },
       },
     },
   });
