@@ -8,7 +8,7 @@ export async function GET() {
       include: {
         sales: {
           include: {
-            payment: { include: { method: true } },
+            payments: { include: { method: true } },
             items: { include: { dish: true } },
           },
         },
