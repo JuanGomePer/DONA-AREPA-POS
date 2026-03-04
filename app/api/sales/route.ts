@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { items, payment, isManagement = false } = body;
+    const { items, payments, isManagement = false } = body;
+    // payments: [{ methodId, amount, cashReceived? }]
 
     const activeSession = await prisma.cashSession.findFirst({
       where: { status: "OPEN" },
@@ -18,12 +19,11 @@ export async function POST(req: Request) {
     }
 
     const salesInSession = await prisma.sale.count({
-      where: { sessionId: activeSession.id }
+      where: { sessionId: activeSession.id },
     });
     const nextTicketNo = salesInSession + 1;
 
     const dishIds = items.map((i: { dishId: string }) => i.dishId);
-    
     const dbDishes = await prisma.dish.findMany({
       where: { id: { in: dishIds } },
       include: { recipe: true },
@@ -37,38 +37,35 @@ export async function POST(req: Request) {
       return { dishId: dish.id, qty: item.qty, price: dish.price, dishName: dish.name };
     });
 
+    // Descuento de inventario (igual que antes)
     const ingredientUpdates = new Map<string, number>();
     for (const item of items) {
       const dish = dbDishes.find((d) => d.id === item.dishId);
       if (dish?.recipe) {
         for (const recipeItem of dish.recipe) {
           const current = ingredientUpdates.get(recipeItem.ingredientId) || 0;
-          ingredientUpdates.set(recipeItem.ingredientId, current + (item.qty * recipeItem.qty));
+          ingredientUpdates.set(recipeItem.ingredientId, current + item.qty * recipeItem.qty);
         }
       }
     }
 
     const ingredientIds = Array.from(ingredientUpdates.keys());
-    const allBatches = ingredientIds.length > 0 ? await prisma.ingredientBatch.findMany({
-      where: { 
-        ingredientId: { in: ingredientIds },
-        qtyRemaining: { gt: 0 }
-      },
-      orderBy: [
-        { ingredientId: 'asc' },
-        { createdAt: 'asc' }
-      ],
-    }) : [];
+    const allBatches =
+      ingredientIds.length > 0
+        ? await prisma.ingredientBatch.findMany({
+            where: { ingredientId: { in: ingredientIds }, qtyRemaining: { gt: 0 } },
+            orderBy: [{ ingredientId: "asc" }, { createdAt: "asc" }],
+          })
+        : [];
 
     const batchesByIngredient = new Map<string, typeof allBatches>();
     for (const batch of allBatches) {
-      if (!batchesByIngredient.has(batch.ingredientId)) {
+      if (!batchesByIngredient.has(batch.ingredientId))
         batchesByIngredient.set(batch.ingredientId, []);
-      }
       batchesByIngredient.get(batch.ingredientId)!.push(batch);
     }
 
-    // 👇 TRANSACCIÓN ULTRA RÁPIDA - SOLO CREAR VENTA
+    // ── TRANSACCIÓN: crear venta + MÚLTIPLES pagos ────────────────────────────
     const sale = await prisma.$transaction(
       async (tx) => {
         const newSale = await tx.sale.create({
@@ -84,31 +81,32 @@ export async function POST(req: Request) {
                 price: it.price,
               })),
             },
-            payment: (!isManagement && payment?.methodId) ? {
-              create: {
-                methodId: payment.methodId,
-                amount: totalAmount,
-                cashReceived: payment.cashReceived || null,
-                changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
-              }
-            } : undefined,
+            // Crear un registro Payment por cada método usado
+            payments: (!isManagement && payments?.length > 0)
+              ? {
+                  create: payments.map((p: any) => ({
+                    methodId: p.methodId,
+                    amount: p.amount,
+                    cashReceived: p.cashReceived || null,
+                    changeGiven:
+                      p.cashReceived && p.cashReceived > p.amount
+                        ? p.cashReceived - p.amount
+                        : null,
+                  })),
+                }
+              : undefined,
           },
-          select: { id: true, ticketNo: true, createdAt: true }
+          select: { id: true, ticketNo: true, createdAt: true },
         });
-
         return newSale;
       },
-      { 
-        maxWait: 3000,
-        timeout: 5000 // Solo 5 segundos porque solo crea la venta
-      }
+      { maxWait: 3000, timeout: 5000 }
     );
 
-    // 👇 DESCUENTOS DE INVENTARIO FUERA DE LA TRANSACCIÓN (en paralelo)
+    // Descuento de inventario fuera de transacción
     try {
       const ingredientUpdatePromises = [];
       const batchUpdatePromises = [];
-
       for (const [ingredientId, qtyToDiscount] of ingredientUpdates.entries()) {
         ingredientUpdatePromises.push(
           prisma.ingredient.update({
@@ -116,44 +114,44 @@ export async function POST(req: Request) {
             data: { stock: { decrement: qtyToDiscount } },
           })
         );
-
         let remaining = qtyToDiscount;
-        const batches = batchesByIngredient.get(ingredientId) || [];
-
-        for (const batch of batches) {
+        for (const batch of batchesByIngredient.get(ingredientId) || []) {
           if (remaining <= 0) break;
           const take = Math.min(batch.qtyRemaining, remaining);
-          
           batchUpdatePromises.push(
             prisma.ingredientBatch.update({
               where: { id: batch.id },
               data: { qtyRemaining: { decrement: take } },
             })
           );
-          
           remaining -= take;
         }
       }
-
       await Promise.all([...ingredientUpdatePromises, ...batchUpdatePromises]);
     } catch (inventoryError) {
-      // Si falla el descuento de inventario, loguear pero NO fallar la venta
-      console.error("ERROR_DESCUENTO_INVENTARIO (venta ya registrada):", inventoryError);
+      console.error("ERROR_DESCUENTO_INVENTARIO:", inventoryError);
     }
 
-    // Obtener método de pago si existe
-    let paymentMethod = null;
-    if (!isManagement && payment?.methodId) {
-      paymentMethod = await prisma.paymentMethod.findUnique({
-        where: { id: payment.methodId },
-        select: { name: true, isCash: true }
+    // Obtener métodos de pago para la respuesta
+    let paymentDetails = null;
+    if (!isManagement && payments?.length > 0) {
+      const methodIds = payments.map((p: any) => p.methodId);
+      const methods = await prisma.paymentMethod.findMany({
+        where: { id: { in: methodIds } },
+        select: { id: true, name: true, isCash: true },
       });
+      paymentDetails = payments.map((p: any) => ({
+        amount: p.amount,
+        cashReceived: p.cashReceived || null,
+        changeGiven:
+          p.cashReceived && p.cashReceived > p.amount ? p.cashReceived - p.amount : null,
+        method: methods.find((m) => m.id === p.methodId) || null,
+      }));
     }
 
-    // 👇 RETORNAR DATOS COMPLETOS PARA EVITAR SEGUNDO FETCH
-    return NextResponse.json({ 
-      success: true, 
-      saleId: sale.id, 
+    return NextResponse.json({
+      success: true,
+      saleId: sale.id,
       ticketNo: sale.ticketNo,
       sale: {
         id: sale.id,
@@ -164,17 +162,12 @@ export async function POST(req: Request) {
         items: itemsWithPrice.map((it: any) => ({
           qty: it.qty,
           price: it.price,
-          dish: { name: it.dishName }
+          dish: { name: it.dishName },
         })),
-        payment: (!isManagement && payment?.methodId) ? {
-          amount: totalAmount,
-          cashReceived: payment.cashReceived || null,
-          changeGiven: payment.cashReceived ? payment.cashReceived - totalAmount : null,
-          method: paymentMethod
-        } : null
-      }
+        // Devolvemos array de pagos
+        payments: paymentDetails,
+      },
     });
-
   } catch (error: any) {
     console.error("ERROR_VENTA:", error);
     return NextResponse.json({ error: error.message || "Error al procesar" }, { status: 500 });

@@ -145,7 +145,7 @@ model Sale {
   isManagement Boolean      @default(false)
 
   items   SaleItem[]
-  payment Payment?
+  payments Payment[]
 }
 
 model SaleItem {
@@ -161,7 +161,7 @@ model SaleItem {
 
 model Payment {
   id       String @id @default(cuid())
-  saleId   String @unique
+  saleId   String
   methodId String
   amount   Int
 
