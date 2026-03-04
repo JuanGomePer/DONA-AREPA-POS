@@ -9,7 +9,7 @@ export async function GET() {
   const sales = await prisma.sale.findMany({
     include: {
       items: { include: { dish: true } },
-      payment: { include: { method: true } }
+      payments: { include: { method: true } }
     },
     orderBy: { createdAt: "desc" }
   });
