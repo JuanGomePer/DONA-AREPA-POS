@@ -4,8 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { items, payments, isManagement = false } = body;
-    // payments: [{ methodId, amount, cashReceived? }]
+    const { items, payments, isManagement = false, customItems = [], note = "", locator = "" } = body;
 
     const activeSession = await prisma.cashSession.findFirst({
       where: { status: "OPEN" },
@@ -23,13 +22,22 @@ export async function POST(req: Request) {
     });
     const nextTicketNo = salesInSession + 1;
 
+    // ── Cargar platos y sus recetas ───────────────────────────────────────────
     const dishIds = items.map((i: { dishId: string }) => i.dishId);
     const dbDishes = await prisma.dish.findMany({
       where: { id: { in: dishIds } },
-      include: { recipe: true },
+      include: {
+        recipe: {
+          include: {
+            ingredient: { include: { product: true } },
+          },
+        },
+      },
     });
 
     let totalAmount = 0;
+    let totalCost = 0;
+
     const itemsWithPrice = items.map((item: { dishId: string; qty: number }) => {
       const dish = dbDishes.find((d) => d.id === item.dishId);
       if (!dish) throw new Error(`Plato no encontrado: ${item.dishId}`);
@@ -37,15 +45,66 @@ export async function POST(req: Request) {
       return { dishId: dish.id, qty: item.qty, price: dish.price, dishName: dish.name };
     });
 
-    // Descuento de inventario (igual que antes)
+    // ── Calcular costo de platos normales ─────────────────────────────────────
+    for (const item of items) {
+      const dish = dbDishes.find((d: any) => d.id === item.dishId);
+      if (!dish?.recipe) continue;
+      for (const ri of dish.recipe) {
+        const product = ri.ingredient?.product;
+        if (product && product.packQty > 0) {
+          const unitCost = product.packPrice / product.packQty;
+          totalCost += unitCost * ri.qty * item.qty;
+        }
+      }
+    }
+
+    // ── Procesar platos personalizados ────────────────────────────────────────
+    // El costo se calcula desde los ingredientes enviados por el app.
+    // No se crea ningún Dish — el nombre queda en la nota del pedido.
+    if (customItems.length > 0) {
+      const customIngIds = customItems.flatMap((ci: any) =>
+        (ci.ingredients ?? []).map((ing: any) => ing.ingredientId)
+      );
+      const customIngredients =
+        customIngIds.length > 0
+          ? await prisma.ingredient.findMany({
+              where: { id: { in: customIngIds } },
+              include: { product: true },
+            })
+          : [];
+
+      for (const ci of customItems) {
+        // Sumar precio al total
+        totalAmount += Math.round(ci.price);
+
+        // Calcular costo de ingredientes del personalizado
+        for (const line of ci.ingredients ?? []) {
+          const ing = customIngredients.find((i: any) => i.id === line.ingredientId);
+          const product = ing?.product;
+          if (product && product.packQty > 0) {
+            const unitCost = product.packPrice / product.packQty;
+            totalCost += unitCost * line.qty;
+          }
+        }
+      }
+    }
+
+    // ── Preparar descuento de inventario ──────────────────────────────────────
     const ingredientUpdates = new Map<string, number>();
     for (const item of items) {
-      const dish = dbDishes.find((d) => d.id === item.dishId);
+      const dish = dbDishes.find((d: any) => d.id === item.dishId);
       if (dish?.recipe) {
         for (const recipeItem of dish.recipe) {
           const current = ingredientUpdates.get(recipeItem.ingredientId) || 0;
           ingredientUpdates.set(recipeItem.ingredientId, current + item.qty * recipeItem.qty);
         }
+      }
+    }
+    // También descontar ingredientes de personalizados
+    for (const ci of customItems) {
+      for (const line of ci.ingredients ?? []) {
+        const current = ingredientUpdates.get(line.ingredientId) || 0;
+        ingredientUpdates.set(line.ingredientId, current + line.qty);
       }
     }
 
@@ -65,13 +124,14 @@ export async function POST(req: Request) {
       batchesByIngredient.get(batch.ingredientId)!.push(batch);
     }
 
-    // ── TRANSACCIÓN: crear venta + MÚLTIPLES pagos ────────────────────────────
+    // ── TRANSACCIÓN: crear venta + pagos ──────────────────────────────────────
     const sale = await prisma.$transaction(
       async (tx) => {
         const newSale = await tx.sale.create({
           data: {
             ticketNo: nextTicketNo,
             total: totalAmount,
+            cost: Math.round(totalCost),   // ← guardado de una vez, para siempre
             sessionId: activeSession.id,
             isManagement,
             items: {
@@ -81,7 +141,6 @@ export async function POST(req: Request) {
                 price: it.price,
               })),
             },
-            // Crear un registro Payment por cada método usado
             payments: (!isManagement && payments?.length > 0)
               ? {
                   create: payments.map((p: any) => ({
@@ -103,7 +162,7 @@ export async function POST(req: Request) {
       { maxWait: 3000, timeout: 5000 }
     );
 
-    // Descuento de inventario fuera de transacción
+    // ── Descuento de inventario (fuera de transacción) ────────────────────────
     try {
       const ingredientUpdatePromises = [];
       const batchUpdatePromises = [];
@@ -132,7 +191,7 @@ export async function POST(req: Request) {
       console.error("ERROR_DESCUENTO_INVENTARIO:", inventoryError);
     }
 
-    // Obtener métodos de pago para la respuesta
+    // ── Respuesta ─────────────────────────────────────────────────────────────
     let paymentDetails = null;
     if (!isManagement && payments?.length > 0) {
       const methodIds = payments.map((p: any) => p.methodId);
@@ -149,6 +208,20 @@ export async function POST(req: Request) {
       }));
     }
 
+    // Construir items de respuesta incluyendo los personalizados
+    const responseItems = [
+      ...itemsWithPrice.map((it: any) => ({
+        qty: it.qty,
+        price: it.price,
+        dish: { name: it.dishName },
+      })),
+      ...(customItems ?? []).map((ci: any) => ({
+        qty: 1,
+        price: Math.round(ci.price),
+        dish: { name: ci.name },
+      })),
+    ];
+
     return NextResponse.json({
       success: true,
       saleId: sale.id,
@@ -159,12 +232,7 @@ export async function POST(req: Request) {
         total: totalAmount,
         createdAt: sale.createdAt,
         isManagement,
-        items: itemsWithPrice.map((it: any) => ({
-          qty: it.qty,
-          price: it.price,
-          dish: { name: it.dishName },
-        })),
-        // Devolvemos array de pagos
+        items: responseItems,
         payments: paymentDetails,
       },
     });

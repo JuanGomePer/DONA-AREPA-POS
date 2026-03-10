@@ -9,43 +9,6 @@ function getMonday(d: Date) {
   return new Date(date.setDate(diff));
 }
 
-async function calculateSaleCost(saleItems: any[]): Promise<number> {
-  let totalCost = 0;
-
-  for (const item of saleItems) {
-    const dish = await prisma.dish.findUnique({
-      where: { id: item.dishId },
-      include: {
-        recipe: {
-          include: {
-            ingredient: {
-              include: {
-                product: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!dish || !dish.recipe) continue;
-
-    for (const recipeItem of dish.recipe) {
-      const ingredient = recipeItem.ingredient;
-      
-      let unitCost = 0;
-      if (ingredient.product && ingredient.product.packQty > 0) {
-        unitCost = ingredient.product.packPrice / ingredient.product.packQty;
-      }
-
-      const qtyConsumed = item.qty * recipeItem.qty;
-      totalCost += qtyConsumed * unitCost;
-    }
-  }
-
-  return totalCost;
-}
-
 export async function GET() {
   try {
     const session = await getSession();
@@ -53,13 +16,18 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
+    // ── Una sola query, sin N+1 ───────────────────────────────────────────────
+    // sale.cost ya fue calculado al momento de la venta — sin recalcular recetas
     const sessions = await prisma.cashSession.findMany({
       where: { status: "CLOSED" },
       include: {
         sales: {
-          include: {
-            items: true,
-            payments: { include: { method: true } }, // ← ya estaba correcto
+          select: {
+            id: true,
+            total: true,
+            cost: true,           // ← el campo nuevo, calculado una vez
+            isManagement: true,
+            payments: { include: { method: true } },
           },
         },
         expenses: true,
@@ -76,10 +44,14 @@ export async function GET() {
       const closeDate = new Date(sess.closedAt);
       const monday = getMonday(new Date(closeDate));
       const weekKey = `${monday.getFullYear()}-W${String(
-        Math.ceil((monday.getTime() - new Date(monday.getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000))
+        Math.ceil(
+          (monday.getTime() - new Date(monday.getFullYear(), 0, 1).getTime()) /
+            (7 * 24 * 60 * 60 * 1000)
+        )
       ).padStart(2, "0")}`;
-
-      const monthKey = `${closeDate.getFullYear()}-${String(closeDate.getMonth() + 1).padStart(2, "0")}`;
+      const monthKey = `${closeDate.getFullYear()}-${String(
+        closeDate.getMonth() + 1
+      ).padStart(2, "0")}`;
 
       const realSales = sess.sales.filter((s: any) => !s.isManagement);
       const mgmtSales = sess.sales.filter((s: any) => s.isManagement);
@@ -88,22 +60,20 @@ export async function GET() {
       const totalMgmt = mgmtSales.reduce((acc: number, s: any) => acc + s.total, 0);
       const totalExpenses = sess.expenses.reduce((acc: number, e: any) => acc + e.amount, 0);
 
-      let investment = 0;
-      for (const sale of realSales) {
-        investment += await calculateSaleCost(sale.items);
-      }
-      for (const sale of mgmtSales) {
-        investment += await calculateSaleCost(sale.items);
-      }
+      // ✅ Costo directo desde sale.cost — sin queries adicionales
+      const investment = [...realSales, ...mgmtSales].reduce(
+        (acc: number, s: any) => acc + (s.cost ?? 0),
+        0
+      );
 
       const profit = totalReal - totalExpenses - investment;
 
-      // ── CAMBIO: iterar payments[] en vez de payment ───────────────────────
       const byMethod: Record<string, { name: string; amount: number }> = {};
       for (const sale of realSales) {
-        for (const p of sale.payments ?? []) {
+        for (const p of (sale as any).payments ?? []) {
           if (!p.method) continue;
-          if (!byMethod[p.methodId]) byMethod[p.methodId] = { name: p.method.name, amount: 0 };
+          if (!byMethod[p.methodId])
+            byMethod[p.methodId] = { name: p.method.name, amount: 0 };
           byMethod[p.methodId].amount += p.amount;
         }
       }
@@ -123,7 +93,7 @@ export async function GET() {
         mgmtCount: mgmtSales.length,
       };
 
-      // Agrupación Semanal
+      // ── Agrupar por semana ────────────────────────────────────────────────
       if (!weeklyMap.has(weekKey)) {
         weeklyMap.set(weekKey, {
           weekKey,
@@ -144,13 +114,12 @@ export async function GET() {
       week.totalExpenses += totalExpenses;
       week.totalInvestment += investment;
       week.profit += profit;
-
       for (const [mid, data] of Object.entries(byMethod)) {
-        if (!week.byMethod[mid]) week.byMethod[mid] = { name: data.name, amount: 0 };
+        if (!week.byMethod[mid]) week.byMethod[mid] = { name: (data as any).name, amount: 0 };
         week.byMethod[mid].amount += (data as any).amount;
       }
 
-      // Agrupación Mensual
+      // ── Agrupar por mes ───────────────────────────────────────────────────
       if (!monthlyMap.has(monthKey)) {
         monthlyMap.set(monthKey, {
           monthKey,
@@ -172,9 +141,8 @@ export async function GET() {
       month.totalExpenses += totalExpenses;
       month.totalInvestment += investment;
       month.profit += profit;
-
       for (const [mid, data] of Object.entries(byMethod)) {
-        if (!month.byMethod[mid]) month.byMethod[mid] = { name: data.name, amount: 0 };
+        if (!month.byMethod[mid]) month.byMethod[mid] = { name: (data as any).name, amount: 0 };
         month.byMethod[mid].amount += (data as any).amount;
       }
     }
