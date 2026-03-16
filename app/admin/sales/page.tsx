@@ -135,9 +135,17 @@ export default function AdminSales() {
                                   ))}
                                 </td>
                                 <td className="py-4">
-                                  <span className="text-[10px] font-black bg-white border px-2 py-1 rounded-lg uppercase text-gray-500">
-                                    {sale.payment?.method?.name || "N/A"}
-                                  </span>
+                                  {(sale.payments ?? []).length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {sale.payments.map((p: any) => (
+                                        <span key={p.id} className="text-[10px] font-black bg-white border px-2 py-1 rounded-lg uppercase text-gray-500">
+                                          {p.method?.name ?? "N/A"}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] font-black bg-white border px-2 py-1 rounded-lg uppercase text-gray-500">N/A</span>
+                                  )}
                                 </td>
                                 <td className="py-4 text-right font-black text-blue-600">
                                   {formatCurrency(sale.total)}
