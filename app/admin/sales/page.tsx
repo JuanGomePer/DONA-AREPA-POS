@@ -139,7 +139,7 @@ export default function AdminSales() {
                                     <div className="flex flex-wrap gap-1">
                                       {sale.payments.map((p: any) => (
                                         <span key={p.id} className="text-[10px] font-black bg-white border px-2 py-1 rounded-lg uppercase text-gray-500">
-                                          {p.method?.name ?? "N/A"}
+                                          {p.method?.name ?? "N/A"} · {formatCurrency(p.amount)}
                                         </span>
                                       ))}
                                     </div>
