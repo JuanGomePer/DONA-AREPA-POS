@@ -84,7 +84,7 @@ export default function AdminDishes() {
   }, [recipe, ingredients]);
 
   const priceNum = Number(price) || 0;
-  const margin = priceNum > 0 && dishCost > 0 ? ((priceNum - dishCost) / priceNum) * 100 : null;
+  const margin = priceNum > 0 && dishCost > 0 ? ((priceNum - dishCost) / dishCost) * 100 : null;
 
   const getCategoryIcon = (cat: string) => {
     switch(cat) {
@@ -181,7 +181,7 @@ export default function AdminDishes() {
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-bold text-gray-600">Margen</span>
-                        <span className={`font-black text-lg ${margin! >= 50 ? "text-green-600" : margin! >= 20 ? "text-amber-600" : "text-red-600"}`}>
+                        <span className={`font-black text-lg ${margin! >= 150 ? "text-green-600" : margin! >= 80 ? "text-amber-600" : "text-red-600"}`}>
                           {margin!.toFixed(1)}%
                         </span>
                       </div>
