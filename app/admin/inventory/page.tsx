@@ -169,7 +169,7 @@ export default function AdminInventory() {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-black">Control de Stock</h1>
+        <h1 className="text-3xl font-black text-gray-900">Control de Stock</h1>
         <button
           onClick={openCreateModal}
           className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors"
@@ -263,7 +263,7 @@ export default function AdminInventory() {
                     <label className="text-xs font-bold text-gray-400 uppercase ml-2 mb-1 block">Nombre</label>
                     <input
                       placeholder="Ej: Harina de maíz"
-                      className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-400"
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       required
@@ -273,7 +273,7 @@ export default function AdminInventory() {
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase ml-2 mb-1 block">Unidad</label>
                     <select
-                      className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-400"
                       value={form.unit}
                       onChange={(e) => setForm({ ...form, unit: e.target.value })}
                     >

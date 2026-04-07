@@ -131,7 +131,7 @@ export default function AdminProductsPage() {
     <div className="p-8">
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-black">Productos (Costos)</h1>
+          <h1 className="text-3xl font-black text-gray-900">Productos (Costos)</h1>
         </div>
 
         <button
@@ -178,7 +178,7 @@ export default function AdminProductsPage() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-xl text-gray-800"
+                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-xl text-gray-900 placeholder:text-gray-400"
                   value={draft[r.id]?.packPrice ?? ""}
                   onChange={(e) =>
                     setDraft((prev) => ({
@@ -197,7 +197,7 @@ export default function AdminProductsPage() {
                 <input
                   type="number"
                   step="any"
-                  className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-xl text-gray-800"
+                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-xl text-gray-900 placeholder:text-gray-400"
                   value={draft[r.id]?.packQty ?? ""}
                   onChange={(e) =>
                     setDraft((prev) => ({
@@ -211,7 +211,7 @@ export default function AdminProductsPage() {
             </div>
 
             <div className="mt-5 p-4 bg-blue-50 rounded-2xl border border-blue-100">
-              <div className="text-xs font-black text-blue-400 uppercase tracking-widest mb-1">Costo unitario actual</div>
+              <div className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">Costo unitario actual</div>
               <div className="text-2xl font-black text-blue-700">
                 {r.qty > 0 ? `${money(r.unitCost)} COP / ${r.unit}` : "—"}
               </div>

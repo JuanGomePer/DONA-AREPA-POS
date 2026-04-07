@@ -83,7 +83,7 @@ export default function AdminDishes() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* FORMULARIO */}
         <div className="bg-white p-8 rounded-[32px] shadow-sm border border-gray-200 h-fit sticky top-8">
-          <h2 className="text-xl font-black mb-6 flex items-center gap-2">
+          <h2 className="text-xl font-black mb-6 flex items-center gap-2 text-gray-900">
             {editingId ? <Edit3 className="text-amber-500" /> : <Plus className="text-blue-600" />}
             {editingId ? "Editar Platillo" : "Nuevo Platillo"}
           </h2>
@@ -91,13 +91,13 @@ export default function AdminDishes() {
           <div className="space-y-4">
             <div>
               <label className="text-xs font-bold text-gray-400 uppercase ml-2">Nombre</label>
-              <input value={name} onChange={e => setName(e.target.value)} className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500" />
+              <input value={name} onChange={e => setName(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-400" />
             </div>
 
             <div className="flex gap-4">
               <div className="flex-1">
                 <label className="text-xs font-bold text-gray-400 uppercase ml-2">Precio</label>
-                <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-400" />
               </div>
               
               <div className="flex-1">
@@ -105,7 +105,7 @@ export default function AdminDishes() {
                 <select 
                   value={category} 
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full p-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500 appearance-none font-bold text-gray-700"
+                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 appearance-none font-bold text-gray-900"
                 >
                   <option value="STARTER">Entrada</option>   {/* 👈 value = enum */}
                   <option value="MAIN">Plato Fuerte</option>
@@ -127,13 +127,13 @@ export default function AdminDishes() {
 
               {recipe.map((item, i) => (
                 <div key={i} className="flex gap-2 mb-2">
-                  <select className="flex-1 p-3 bg-gray-50 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-200" value={item.ingredientId} onChange={e => {
+                  <select className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 outline-none focus:ring-2 focus:ring-blue-200" value={item.ingredientId} onChange={e => {
                     const nr = [...recipe]; nr[i].ingredientId = e.target.value; setRecipe(nr);
                   }}>
                     <option value="">Seleccionar ingrediente...</option>
                     {ingredients.map((ing: any) => <option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}
                   </select>
-                  <input type="number" className="w-20 p-3 bg-gray-50 rounded-xl text-center text-sm outline-none focus:ring-2 focus:ring-blue-200" value={item.qty} onChange={e => {
+                  <input type="number" className="w-20 p-3 bg-gray-50 border border-gray-200 rounded-xl text-center text-sm text-gray-900 outline-none focus:ring-2 focus:ring-blue-200" value={item.qty} onChange={e => {
                     const nr = [...recipe]; nr[i].qty = parseFloat(e.target.value); setRecipe(nr);
                   }} />
                   <button onClick={() => setRecipe(recipe.filter((_, idx) => idx !== i))} className="text-red-400 px-2 hover:bg-red-50 rounded-lg"><X size={16}/></button>
@@ -152,7 +152,7 @@ export default function AdminDishes() {
 
         {/* LISTADO */}
         <div className="space-y-4">
-          <h2 className="text-xl font-black mb-6 px-2">Menú Actual</h2>
+          <h2 className="text-xl font-black mb-6 px-2 text-gray-900">Menú Actual</h2>
           {dishes.map((dish: any) => (
             <div key={dish.id} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-gray-200 group hover:border-blue-300 transition-all">
               <div className="flex items-center gap-4">
