@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Doña Arepa POS",
-  description: "Sistema de punto de venta Doña Arepa",
+  description: "Sistema de punto de venta e inventario Doña Arepa",
 };
 
 export default function RootLayout({
