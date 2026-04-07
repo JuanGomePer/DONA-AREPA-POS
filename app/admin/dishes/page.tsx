@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Trash2, Edit3, X, Soup, UtensilsCrossed, Coffee } from "lucide-react";
+import { Plus, Trash2, Edit3, X, Soup, UtensilsCrossed, Coffee, Search } from "lucide-react";
 
 // Mapa para mostrar labels bonitos en la UI
 const CATEGORY_LABEL: Record<string, string> = {
@@ -17,7 +17,9 @@ export default function AdminDishes() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [dishes, setDishes] = useState([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("ALL");
+
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [category, setCategory] = useState("MAIN"); // 👈 valor del enum, no español
@@ -71,6 +73,14 @@ export default function AdminDishes() {
     setCategory(dish.category); // viene como "MAIN", "STARTER", etc.
     setRecipe(dish.recipe.map((r: any) => ({ ingredientId: r.ingredientId, qty: r.qty })));
   };
+
+  const filteredDishes = useMemo(() => {
+    return (dishes as any[]).filter((d) => {
+      const matchCat = filterCat === "ALL" || d.category === filterCat;
+      const matchSearch = d.name.toLowerCase().includes(search.toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [dishes, filterCat, search]);
 
   const dishCost = useMemo(() => {
     let total = 0;
@@ -205,8 +215,33 @@ export default function AdminDishes() {
 
         {/* LISTADO */}
         <div className="space-y-4">
-          <h2 className="text-xl font-black mb-6 px-2 text-gray-900">Menú Actual</h2>
-          {dishes.map((dish: any) => (
+          <h2 className="text-xl font-black mb-4 px-2 text-gray-900">Menú Actual</h2>
+
+          {/* Buscador + filtro categoría */}
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar platillo..."
+                className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <select
+              value={filterCat}
+              onChange={e => setFilterCat(e.target.value)}
+              className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-900 outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="ALL">Todas</option>
+              <option value="STARTER">Entradas</option>
+              <option value="MAIN">Platos Fuertes</option>
+              <option value="DRINK">Bebidas</option>
+              <option value="ADDON">Extras</option>
+            </select>
+          </div>
+
+          {filteredDishes.map((dish: any) => (
             <div key={dish.id} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-gray-200 group hover:border-blue-300 transition-all">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
@@ -230,10 +265,10 @@ export default function AdminDishes() {
             </div>
           ))}
           
-          {dishes.length === 0 && (
+          {filteredDishes.length === 0 && (
             <div className="text-center p-12 text-gray-300">
               <UtensilsCrossed size={48} className="mx-auto mb-4 opacity-50"/>
-              <p>No hay platillos creados aún.</p>
+              <p>{search || filterCat !== "ALL" ? "Sin resultados." : "No hay platillos creados aún."}</p>
             </div>
           )}
         </div>

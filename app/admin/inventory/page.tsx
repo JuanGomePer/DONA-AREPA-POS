@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, Trash2, Edit3, X, PlusCircle } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, Trash2, Edit3, X, PlusCircle, Search } from "lucide-react";
 
 type ModalMode = "edit" | "restock";
 
@@ -26,6 +26,7 @@ function unitCost(ing: Ingredient) {
 
 export default function AdminInventory() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("edit");
   const [editingIng, setEditingIng] = useState<Ingredient | null>(null);
@@ -155,6 +156,11 @@ export default function AdminInventory() {
     }
   };
 
+  const filteredIngredients = useMemo(() =>
+    ingredients.filter(i => i.name.toLowerCase().includes(search.toLowerCase())),
+    [ingredients, search]
+  );
+
   const getStockColor = (stock: number) => {
     if (stock <= 0) return "text-red-500";
     if (stock <= 5) return "text-amber-500";
@@ -168,7 +174,7 @@ export default function AdminInventory() {
 
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-black text-gray-900">Control de Stock</h1>
         <button
           onClick={openCreateModal}
@@ -178,8 +184,18 @@ export default function AdminInventory() {
         </button>
       </div>
 
+      <div className="relative mb-6 max-w-sm">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar insumo..."
+          className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {ingredients.map((ing) => {
+        {filteredIngredients.map((ing) => {
           const uc = unitCost(ing);
           return (
             <div
