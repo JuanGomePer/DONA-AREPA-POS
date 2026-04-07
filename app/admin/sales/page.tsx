@@ -73,7 +73,7 @@ export default function AdminSales() {
                       </h3>
 
                       <div className="flex items-center gap-3 mt-1">
-                        <span className="flex items-center gap-1 text-xs font-bold text-gray-400 uppercase tracking-tight">
+                        <span className="flex items-center gap-1 text-xs font-bold text-gray-600 uppercase tracking-tight">
                           <Clock size={14} />{" "}
                           {new Date(session.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           {session.closedAt
@@ -96,10 +96,10 @@ export default function AdminSales() {
 
                   <div className="flex items-center gap-8">
                     <div className="text-right">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Recaudado</p>
+                      <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Recaudado</p>
                       <p className="text-3xl font-black text-blue-600 tracking-tighter">{formatCurrency(totalSession)}</p>
                     </div>
-                    {isExpanded ? <ChevronUp className="text-blue-500" /> : <ChevronDown className="text-gray-300" />}
+                    {isExpanded ? <ChevronUp className="text-blue-500" /> : <ChevronDown className="text-gray-500" />}
                   </div>
                 </div>
 
@@ -107,7 +107,7 @@ export default function AdminSales() {
                 {isExpanded && (
                   <div className="px-7 pb-7 space-y-4">
                     {/* VENTAS REALES */}
-                    <div className="bg-gray-50 rounded-[24px] p-6 border border-gray-100">
+                    <div className="bg-gray-50 rounded-[24px] p-6 border border-gray-200">
                       <div className="flex items-center gap-2 mb-4">
                         <Tag size={18} className="text-blue-500" />
                         <h4 className="font-black text-sm uppercase text-gray-700">Ventas reales</h4>
@@ -123,7 +123,7 @@ export default function AdminSales() {
                               <th className="pb-3 text-right">Total</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-100">
+                          <tbody className="divide-y divide-gray-200">
                             {salesReal.map((sale: any) => (
                               <tr key={sale.id} className="group">
                                 <td className="py-4 font-bold text-gray-900">#{sale.ticketNo}</td>
@@ -138,13 +138,13 @@ export default function AdminSales() {
                                   {(sale.payments ?? []).length > 0 ? (
                                     <div className="flex flex-wrap gap-1">
                                       {sale.payments.map((p: any) => (
-                                        <span key={p.id} className="text-[10px] font-black bg-white border px-2 py-1 rounded-lg uppercase text-gray-500">
+                                        <span key={p.id} className="text-[10px] font-black bg-white border border-gray-200 px-2 py-1 rounded-lg uppercase text-gray-600">
                                           {p.method?.name ?? "N/A"} · {formatCurrency(p.amount)}
                                         </span>
                                       ))}
                                     </div>
                                   ) : (
-                                    <span className="text-[10px] font-black bg-white border px-2 py-1 rounded-lg uppercase text-gray-500">N/A</span>
+                                    <span className="text-[10px] font-black bg-white border border-gray-200 px-2 py-1 rounded-lg uppercase text-gray-600">N/A</span>
                                   )}
                                 </td>
                                 <td className="py-4 text-right font-black text-blue-600">

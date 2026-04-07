@@ -184,7 +184,7 @@ export default function AdminInventory() {
           return (
             <div
               key={ing.id}
-              className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-all group relative flex flex-col justify-between"
+              className="bg-white p-6 rounded-[32px] border border-gray-200 shadow-sm hover:shadow-md transition-all group relative flex flex-col justify-between"
             >
               <button
                 onClick={() => deleteIng(ing.id)}
@@ -194,7 +194,7 @@ export default function AdminInventory() {
               </button>
 
               <div className="mb-5">
-                <p className="text-gray-400 text-xs font-black uppercase tracking-widest mb-2">{ing.name}</p>
+                <p className="text-gray-700 font-black text-sm mb-2">{ing.name}</p>
 
                 <div className="flex items-end justify-between">
                   <span className={`text-4xl font-black ${getStockColor(ing.stock ?? 0)}`}>
@@ -203,7 +203,7 @@ export default function AdminInventory() {
                   <span className="text-gray-400 font-bold mb-1">{ing.unit}</span>
                 </div>
 
-                <div className="mt-3 text-xs font-bold text-gray-500">
+                <div className="mt-3 text-xs font-bold text-gray-600">
                   {uc ? (
                     <span>
                       Costo actual: <span className="text-blue-700">{uc.toFixed(2)} COP</span> / {ing.unit}
@@ -219,7 +219,7 @@ export default function AdminInventory() {
               <div className="flex gap-2">
                 <button
                   onClick={() => openEditModal(ing)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold text-xs transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-xs transition-colors"
                 >
                   <Edit3 size={14} /> Corregir
                 </button>

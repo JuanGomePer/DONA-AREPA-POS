@@ -82,7 +82,7 @@ export default function AdminDishes() {
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* FORMULARIO */}
-        <div className="bg-white p-8 rounded-[32px] shadow-sm border border-gray-100 h-fit sticky top-8">
+        <div className="bg-white p-8 rounded-[32px] shadow-sm border border-gray-200 h-fit sticky top-8">
           <h2 className="text-xl font-black mb-6 flex items-center gap-2">
             {editingId ? <Edit3 className="text-amber-500" /> : <Plus className="text-blue-600" />}
             {editingId ? "Editar Platillo" : "Nuevo Platillo"}
@@ -154,13 +154,13 @@ export default function AdminDishes() {
         <div className="space-y-4">
           <h2 className="text-xl font-black mb-6 px-2">Menú Actual</h2>
           {dishes.map((dish: any) => (
-            <div key={dish.id} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-gray-100 group hover:border-blue-200 transition-all">
+            <div key={dish.id} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-gray-200 group hover:border-blue-300 transition-all">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
                   {getCategoryIcon(dish.category)}
                 </div>
                 <div>
-                  <p className="font-bold text-gray-800 text-lg">{dish.name}</p>
+                  <p className="font-bold text-gray-900 text-lg">{dish.name}</p>
                   <div className="flex items-center gap-2">
                     <span className="text-blue-600 font-black text-sm">${dish.price.toLocaleString()}</span>
                     {/* 👈 Usamos el mapa para mostrar el label bonito */}

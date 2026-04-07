@@ -216,7 +216,7 @@ export default function AdminReports() {
                     <span className="text-2xl font-black text-green-600">{formatCurrency(report.profit)}</span>
                   </div>
 
-                  <div className="pt-3 border-t border-gray-100 space-y-1.5">
+                  <div className="pt-3 border-t border-gray-200 space-y-1.5">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500 font-medium">Vendido</span>
                       <span className="font-bold text-blue-600">{formatCurrency(report.totalReal)}</span>
@@ -231,7 +231,7 @@ export default function AdminReports() {
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                  <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
                     <span className="text-xs text-gray-400 font-medium">{report.sessions.length} turnos</span>
                     {report.totalMgmt > 0 && (
                       <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-bold">
@@ -345,7 +345,7 @@ export default function AdminReports() {
 
                 <div className="space-y-3">
                   {selectedReport.sessions.map((session) => (
-                    <div key={session.id} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                    <div key={session.id} className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
                       <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
                           <Clock size={16} className="text-gray-400" />
@@ -364,22 +364,22 @@ export default function AdminReports() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-white rounded-xl p-3 border border-gray-100">
+                        <div className="bg-white rounded-xl p-3 border border-gray-200">
                           <p className="text-xs text-gray-400 font-bold uppercase mb-1">Vendido</p>
                           <p className="font-black text-blue-600">{formatCurrency(session.totalReal)}</p>
                         </div>
 
-                        <div className="bg-white rounded-xl p-3 border border-gray-100">
+                        <div className="bg-white rounded-xl p-3 border border-gray-200">
                           <p className="text-xs text-gray-400 font-bold uppercase mb-1">Inversión</p>
                           <p className="font-black text-amber-600">-{formatCurrency(session.investment)}</p>
                         </div>
 
-                        <div className="bg-white rounded-xl p-3 border border-gray-100">
+                        <div className="bg-white rounded-xl p-3 border border-gray-200">
                           <p className="text-xs text-gray-400 font-bold uppercase mb-1">Gastos</p>
                           <p className="font-black text-red-600">-{formatCurrency(session.totalExpenses)}</p>
                         </div>
 
-                        <div className="bg-white rounded-xl p-3 border border-gray-100">
+                        <div className="bg-white rounded-xl p-3 border border-gray-200">
                           <p className="text-xs text-gray-400 font-bold uppercase mb-1">Ganancia</p>
                           <p className="font-black text-green-600">{formatCurrency(session.profit)}</p>
                         </div>

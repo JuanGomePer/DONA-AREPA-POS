@@ -34,7 +34,7 @@ export default function AdminSidebar() {
   };
 
   return (
-    <aside className="w-64 bg-white h-screen border-r border-gray-100 flex flex-col fixed left-0 top-0">
+    <aside className="w-64 bg-white h-screen border-r border-gray-200 flex flex-col fixed left-0 top-0">
       <div className="p-8">
         <div className="flex items-center gap-3 mb-10">
           <div className="bg-blue-600 p-2 rounded-xl text-white font-black text-xs">DA</div>
@@ -49,7 +49,7 @@ export default function AdminSidebar() {
               className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all ${
                 pathname === item.href
                   ? "bg-blue-50 text-blue-600"
-                  : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-800"
               }`}
             >
               <item.icon size={20} />

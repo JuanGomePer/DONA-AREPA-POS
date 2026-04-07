@@ -358,7 +358,7 @@ export default function PosClient({
     <div className="h-screen bg-gray-100 flex flex-col overflow-hidden font-sans text-gray-900">
 
       {/* HEADER */}
-      <div className="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm z-10 shrink-0">
+      <div className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center shadow-sm z-10 shrink-0">
         <div className="flex items-center gap-4">
           <div className="bg-blue-600 p-2 rounded-lg text-white font-black">DA</div>
           <h1 className="font-bold text-xl tracking-tight hidden md:block">Dona Arepa POS</h1>
@@ -434,7 +434,7 @@ export default function PosClient({
                   <button
                     key={d.id}
                     onClick={() => addDish(d.id)}
-                    className="bg-white p-4 rounded-3xl shadow-sm border-2 border-transparent active:border-blue-500 active:scale-95 transition-all flex flex-col items-center text-center justify-between min-h-[140px] hover:shadow-md"
+                    className="bg-white p-4 rounded-3xl shadow-sm border-2 border-gray-200 hover:border-blue-300 active:border-blue-500 active:scale-95 transition-all flex flex-col items-center text-center justify-between min-h-[140px] hover:shadow-md"
                   >
                     <span className="font-bold text-gray-800 text-lg leading-tight line-clamp-2">{d.name}</span>
                     <span className="text-blue-600 font-black text-xl mt-2">{formatCurrency(d.price)}</span>
@@ -446,7 +446,7 @@ export default function PosClient({
         </div>
 
         {/* ORDEN */}
-        <div className="w-full md:w-[400px] bg-white shadow-2xl flex flex-col h-full border-l z-20">
+        <div className="w-full md:w-[400px] bg-white shadow-2xl flex flex-col h-full border-l border-gray-200 z-20">
           <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
             <h2 className="font-black text-xl uppercase tracking-tighter flex items-center gap-2">
               <Receipt size={24} className="text-blue-600" /> Orden
@@ -463,7 +463,7 @@ export default function PosClient({
                 <p className="font-medium mt-4 italic text-lg">Esperando pedido...</p>
               </div>
             ) : cartItems.map((it) => (
-              <div key={it.dishId} className="flex items-center justify-between p-4 bg-white border rounded-2xl shadow-sm">
+              <div key={it.dishId} className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-2xl shadow-sm">
                 <div className="flex-1">
                   <div className="font-bold text-gray-900 text-sm">{it.dish.name}</div>
                   <div className="text-blue-600 font-medium text-xs">{formatCurrency(it.dish.price)}</div>
@@ -529,7 +529,7 @@ export default function PosClient({
                   <p>Sin insumos registrados</p>
                 </div>
               ) : inventory.map((ing) => (
-                <div key={ing.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <div key={ing.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-200">
                   <span className="font-bold text-gray-800">{ing.name}</span>
                   <span className={`font-black text-sm px-3 py-1 rounded-xl ${getStockColor(ing.stock)}`}>
                     {ing.stock % 1 === 0 ? ing.stock : ing.stock.toFixed(2)} {ing.unit}
@@ -664,7 +664,7 @@ export default function PosClient({
                         <button
                           key={m.id}
                           onClick={() => { setMethodId(m.id); setCashInput(""); }}
-                          className={`p-5 rounded-2xl border-4 flex flex-col items-center gap-2 transition-all ${methodId === m.id ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-100 bg-white"}`}
+                          className={`p-5 rounded-2xl border-4 flex flex-col items-center gap-2 transition-all ${methodId === m.id ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-700"}`}
                         >
                           {m.isCash ? <Banknote size={28} /> : <CreditCard size={28} />}
                           <span className="font-bold text-lg">{m.name}</span>
@@ -715,7 +715,7 @@ export default function PosClient({
                     <button
                       key={num}
                       onClick={() => handleNumpadClick(num.toString())}
-                      className="h-20 bg-gray-50 hover:bg-gray-100 rounded-2xl text-2xl font-bold active:bg-gray-200 border border-gray-100"
+                      className="h-20 bg-gray-50 hover:bg-gray-100 rounded-2xl text-2xl font-bold text-gray-800 active:bg-gray-200 border border-gray-200"
                     >{num}</button>
                   ))}
                   <button onClick={backspaceNumpad} className="h-20 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center"><Delete size={28} /></button>
@@ -787,7 +787,7 @@ export default function PosClient({
                     </div>
                   </div>
 
-                  <div className="border-t border-blue-200 mt-3 pt-3 flex justify-between font-black text-blue-400">
+                  <div className="border-t border-blue-200 mt-3 pt-3 flex justify-between font-black text-blue-700">
                     <span>Total</span>
                     <span>{formatCurrency(totalCheck)}</span>
                   </div>

@@ -150,11 +150,11 @@ export default function AdminProductsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {computed.map((r) => (
-          <div key={r.id} className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
+          <div key={r.id} className="bg-white p-6 rounded-[32px] border border-gray-200 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">{r.name}</p>
-                <p className="text-sm text-gray-500 font-bold">
+                <p className="text-sm font-black text-gray-800 mb-1">{r.name}</p>
+                <p className="text-sm text-gray-600 font-bold">
                   Unidad: <span className="text-gray-700">{r.unit}</span> • Stock:{" "}
                   <span className="text-gray-700">{r.stock % 1 === 0 ? r.stock : r.stock.toFixed(2)}</span>
                 </p>
@@ -228,7 +228,7 @@ export default function AdminProductsPage() {
               </button>
 
               {openBatches[r.id] && (
-                <div className="mt-3 p-4 rounded-2xl border border-gray-100">
+                <div className="mt-3 p-4 rounded-2xl border border-gray-200 bg-gray-50">
                   {r.batches.length === 0 ? (
                     <p className="text-sm text-gray-500 font-bold">
                       No hay lotes todavía. Para crear lotes, usa “Agregar” en Inventario (reabastecer).
@@ -238,9 +238,9 @@ export default function AdminProductsPage() {
                       {r.batches.map((b) => {
                         const totalRemaining = b.qtyRemaining * b.unitCost;
                         return (
-                          <div key={b.id} className="flex items-center justify-between gap-3 bg-white">
+                          <div key={b.id} className="flex items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200">
                             <div>
-                              <div className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                              <div className="text-xs font-black text-gray-500 uppercase tracking-widest">
                                 {fmtDate(b.createdAt)}
                               </div>
                               <div className="text-sm font-bold text-gray-700">
