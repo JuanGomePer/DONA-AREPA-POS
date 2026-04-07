@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Plus, Trash2, Edit3, X, Soup, UtensilsCrossed, Coffee } from "lucide-react";
 
 // Mapa para mostrar labels bonitos en la UI
@@ -10,8 +10,11 @@ const CATEGORY_LABEL: Record<string, string> = {
   ADDON:   "Adiciones",
 };
 
+type IngredientProduct = { packPrice: number; packQty: number };
+type Ingredient = { id: string; name: string; unit: string; stock: number; product?: IngredientProduct | null };
+
 export default function AdminDishes() {
-  const [ingredients, setIngredients] = useState([]);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [dishes, setDishes] = useState([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   
@@ -68,6 +71,20 @@ export default function AdminDishes() {
     setCategory(dish.category); // viene como "MAIN", "STARTER", etc.
     setRecipe(dish.recipe.map((r: any) => ({ ingredientId: r.ingredientId, qty: r.qty })));
   };
+
+  const dishCost = useMemo(() => {
+    let total = 0;
+    for (const item of recipe) {
+      const ing = ingredients.find((i) => i.id === item.ingredientId);
+      const p = ing?.product;
+      if (!p || p.packQty <= 0 || !item.qty) continue;
+      total += (p.packPrice / p.packQty) * item.qty;
+    }
+    return total;
+  }, [recipe, ingredients]);
+
+  const priceNum = Number(price) || 0;
+  const margin = priceNum > 0 && dishCost > 0 ? ((priceNum - dishCost) / priceNum) * 100 : null;
 
   const getCategoryIcon = (cat: string) => {
     switch(cat) {
@@ -140,6 +157,42 @@ export default function AdminDishes() {
                 </div>
               ))}
             </div>
+
+            {/* COSTO Y MARGEN */}
+            {recipe.some(r => r.ingredientId) && (
+              <div className={`rounded-2xl p-4 border ${dishCost > 0 ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-gray-200"}`}>
+                <p className="text-xs font-black uppercase tracking-widest mb-3 text-amber-700">
+                  Análisis de costo
+                </p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-gray-600">Costo de ingredientes</span>
+                    <span className="font-black text-amber-700">
+                      {dishCost > 0 ? `$${Math.round(dishCost).toLocaleString("es-CO")}` : "—"}
+                    </span>
+                  </div>
+                  {priceNum > 0 && dishCost > 0 && (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-gray-600">Ganancia neta</span>
+                        <span className={`font-black ${priceNum - dishCost >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          ${Math.round(priceNum - dishCost).toLocaleString("es-CO")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-gray-600">Margen</span>
+                        <span className={`font-black text-lg ${margin! >= 50 ? "text-green-600" : margin! >= 20 ? "text-amber-600" : "text-red-600"}`}>
+                          {margin!.toFixed(1)}%
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  {dishCost > 0 && (!priceNum || priceNum === 0) && (
+                    <p className="text-xs text-amber-600 font-bold">Ingresa el precio para ver el margen.</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-2 pt-4">
               {editingId && <button onClick={resetForm} className="flex-1 py-4 font-bold text-gray-400 hover:bg-gray-100 rounded-2xl transition-colors">CANCELAR</button>}
