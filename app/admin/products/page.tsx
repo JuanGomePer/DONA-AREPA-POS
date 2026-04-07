@@ -97,7 +97,7 @@ export default function AdminProductsPage() {
       const unitCost = qty > 0 ? price / qty : 0;
       return { ...r, price, qty, unitCost };
     });
-  }, [rows, draft]);
+  }, [rows, draft, search]);
 
   async function save(ingredientId: string) {
     setErr(null);
