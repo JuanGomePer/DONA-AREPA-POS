@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git show:*)",
-      "Bash(xargs -0 grep -l \"metadata\\\\|Metadata\")"
+      "Bash(xargs -0 grep -l \"metadata\\\\|Metadata\")",
+      "Bash(python:*)"
     ]
   }
 }
