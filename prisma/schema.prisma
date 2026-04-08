@@ -155,6 +155,7 @@ model SaleItem {
   dishId String
   qty    Int
   price  Int
+  cost   Int    @default(0)
 
   sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
   dish Dish @relation(fields: [dishId], references: [id])
@@ -211,4 +212,13 @@ model CashExpense {
   createdAt   DateTime @default(now())
 
   session CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model OperatingExpense {
+  id          String   @id @default(cuid())
+  description String
+  amount      Int
+  month       Int
+  year        Int
+  createdAt   DateTime @default(now())
 }

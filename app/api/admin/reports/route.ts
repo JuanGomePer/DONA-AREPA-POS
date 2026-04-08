@@ -16,24 +16,32 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // ── Una sola query, sin N+1 ───────────────────────────────────────────────
-    // sale.cost ya fue calculado al momento de la venta — sin recalcular recetas
-    const sessions = await prisma.cashSession.findMany({
-      where: { status: "CLOSED" },
-      include: {
-        sales: {
-          select: {
-            id: true,
-            total: true,
-            cost: true,           // ← el campo nuevo, calculado una vez
-            isManagement: true,
-            payments: { include: { method: true } },
+    const [sessions, opExpenses] = await Promise.all([
+      prisma.cashSession.findMany({
+        where: { status: "CLOSED" },
+        include: {
+          sales: {
+            select: {
+              id: true,
+              total: true,
+              cost: true,
+              isManagement: true,
+              payments: { include: { method: true } },
+            },
           },
+          expenses: true,
         },
-        expenses: true,
-      },
-      orderBy: { closedAt: "desc" },
-    });
+        orderBy: { closedAt: "desc" },
+      }),
+      prisma.operatingExpense.findMany(),
+    ]);
+
+    // Agrupar gastos operativos por "YYYY-MM"
+    const opByMonth = new Map<string, number>();
+    for (const op of opExpenses) {
+      const key = `${op.year}-${String(op.month).padStart(2, "0")}`;
+      opByMonth.set(key, (opByMonth.get(key) ?? 0) + op.amount);
+    }
 
     const weeklyMap = new Map<string, any>();
     const monthlyMap = new Map<string, any>();
@@ -145,6 +153,13 @@ export async function GET() {
         if (!month.byMethod[mid]) month.byMethod[mid] = { name: (data as any).name, amount: 0 };
         month.byMethod[mid].amount += (data as any).amount;
       }
+    }
+
+    // Sumar gastos operativos a cada mes
+    for (const month of monthlyMap.values()) {
+      const opTotal = opByMonth.get(month.monthKey) ?? 0;
+      month.totalExpenses += opTotal;
+      month.profit -= opTotal;
     }
 
     return NextResponse.json({

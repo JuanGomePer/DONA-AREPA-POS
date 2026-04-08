@@ -33,6 +33,8 @@ export default function AdminInventory() {
 
   const [form, setForm] = useState({ name: "", unit: "unit", stock: "" });
   const [restockAmount, setRestockAmount] = useState("");
+  const [restockByValue, setRestockByValue] = useState(false);
+  const [restockTotalSpent, setRestockTotalSpent] = useState("");
 
   const loadData = () =>
     fetch("/api/admin/inventory")
@@ -55,6 +57,8 @@ export default function AdminInventory() {
     setModalMode("restock");
     setEditingIng(ing);
     setRestockAmount("");
+    setRestockByValue(false);
+    setRestockTotalSpent("");
     setShowModal(true);
   };
 
@@ -69,6 +73,8 @@ export default function AdminInventory() {
     setShowModal(false);
     setEditingIng(null);
     setRestockAmount("");
+    setRestockByValue(false);
+    setRestockTotalSpent("");
     setForm({ name: "", unit: "unit", stock: "" });
   };
 
@@ -101,22 +107,33 @@ export default function AdminInventory() {
     e.preventDefault();
     if (!editingIng) return;
 
-    const amt = parseFloat(restockAmount);
-    if (!restockAmount || !Number.isFinite(amt) || amt <= 0) {
-      alert("Por favor ingresa una cantidad válida");
-      return;
-    }
-
     if (!unitCost(editingIng)) {
       alert("Configura el producto (precio y porciones) antes de reabastecer");
       return;
+    }
+
+    let amountToSend: number;
+    if (restockByValue) {
+      const totalSpent = parseFloat(restockTotalSpent);
+      if (!restockTotalSpent || !Number.isFinite(totalSpent) || totalSpent <= 0) {
+        alert("Por favor ingresa un valor total válido");
+        return;
+      }
+      amountToSend = totalSpent / unitCost(editingIng)!;
+    } else {
+      const amt = parseFloat(restockAmount);
+      if (!restockAmount || !Number.isFinite(amt) || amt <= 0) {
+        alert("Por favor ingresa una cantidad válida");
+        return;
+      }
+      amountToSend = amt;
     }
 
     try {
       const res = await fetch("/api/admin/inventory", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editingIng.id, amount: restockAmount }),
+        body: JSON.stringify({ id: editingIng.id, amount: amountToSend }),
       });
 
       if (res.ok) {
@@ -197,6 +214,7 @@ export default function AdminInventory() {
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {filteredIngredients.map((ing) => {
           const uc = unitCost(ing);
+          const isAggregate = ["PORCION CONTABLE SALSAS", "SERVICIO"].includes(ing.name.toUpperCase());
           return (
             <div
               key={ing.id}
@@ -219,11 +237,21 @@ export default function AdminInventory() {
                   <span className="text-gray-400 font-bold mb-1">{ing.unit}</span>
                 </div>
 
-                <div className="mt-3 text-xs font-bold text-gray-600">
+                <div className="mt-3 text-xs font-bold text-gray-600 space-y-1">
                   {uc ? (
-                    <span>
-                      Costo actual: <span className="text-blue-700">{uc.toFixed(2)} COP</span> / {ing.unit}
-                    </span>
+                    <>
+                      <span className="block">
+                        Costo: <span className="text-blue-700">{uc.toFixed(0)} COP</span> / {ing.unit}
+                      </span>
+                      {isAggregate && (
+                        <span className="block">
+                          Valor restante:{" "}
+                          <span className="text-emerald-700">
+                            ${Math.round((ing.stock ?? 0) * uc).toLocaleString("es-CO")} COP
+                          </span>
+                        </span>
+                      )}
+                    </>
                   ) : (
                     <span className="text-amber-700">
                       Sin costo configurado (ve a <b>/admin/products</b>)
@@ -333,7 +361,14 @@ export default function AdminInventory() {
               </form>
             )}
 
-            {modalMode === "restock" && editingIng && (
+            {modalMode === "restock" && editingIng && (() => {
+              const uc = unitCost(editingIng);
+              const isAggregate = ["PORCION CONTABLE SALSAS", "SERVICIO"].includes(editingIng.name.toUpperCase());
+              const totalSpentNum = parseFloat(restockTotalSpent);
+              const previewPortions = restockByValue && uc && Number.isFinite(totalSpentNum) && totalSpentNum > 0
+                ? totalSpentNum / uc
+                : null;
+              return (
               <form onSubmit={handleRestockSubmit}>
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-black">Agregar Stock</h2>
@@ -356,10 +391,14 @@ export default function AdminInventory() {
                   </div>
 
                   <div className="mt-2 text-sm font-bold text-gray-600">
-                    {unitCost(editingIng) ? (
+                    {uc ? (
                       <>
-                        Costo actual:{" "}
-                        <span className="text-blue-700">{unitCost(editingIng)!.toFixed(2)} COP</span> / {editingIng.unit}
+                        Costo: <span className="text-blue-700">{uc.toFixed(0)} COP</span> / {editingIng.unit}
+                        {" · "}
+                        Valor restante:{" "}
+                        <span className="text-emerald-700">
+                          ${Math.round((editingIng.stock ?? 0) * uc).toLocaleString("es-CO")}
+                        </span>
                       </>
                     ) : (
                       <span className="text-amber-700">
@@ -369,6 +408,48 @@ export default function AdminInventory() {
                   </div>
                 </div>
 
+                {isAggregate && (
+                  <div className="flex mb-4 bg-gray-100 rounded-2xl p-1">
+                    <button
+                      type="button"
+                      onClick={() => setRestockByValue(false)}
+                      className={`flex-1 py-2 rounded-xl text-sm font-black transition-colors ${!restockByValue ? "bg-white shadow text-blue-600" : "text-gray-400"}`}
+                    >
+                      Por porciones
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRestockByValue(true)}
+                      className={`flex-1 py-2 rounded-xl text-sm font-black transition-colors ${restockByValue ? "bg-white shadow text-emerald-600" : "text-gray-400"}`}
+                    >
+                      Por valor total ($)
+                    </button>
+                  </div>
+                )}
+
+                {restockByValue ? (
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase ml-2 mb-1 block">
+                      Total gastado (COP)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      min="1"
+                      step="any"
+                      autoFocus
+                      className="w-full p-5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-black text-3xl text-emerald-600 text-center"
+                      value={restockTotalSpent}
+                      onChange={(e) => setRestockTotalSpent(e.target.value)}
+                      required
+                    />
+                    {previewPortions !== null && (
+                      <p className="mt-3 text-center text-sm font-bold text-gray-500">
+                        = <span className="text-emerald-700 text-base">{previewPortions.toFixed(2)} porciones</span> se agregarán al inventario
+                      </p>
+                    )}
+                  </div>
+                ) : (
                 <div>
                   <label className="text-xs font-bold text-gray-400 uppercase ml-2 mb-1 block">
                     Cantidad a agregar ({editingIng.unit})
@@ -385,6 +466,7 @@ export default function AdminInventory() {
                     required
                   />
                 </div>
+                )}
 
                 <div className="flex gap-4 mt-8">
                   <button
@@ -404,7 +486,8 @@ export default function AdminInventory() {
                   </button>
                 </div>
               </form>
-            )}
+              );
+            })()}
           </div>
         </div>
       )}

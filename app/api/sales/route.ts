@@ -42,21 +42,19 @@ export async function POST(req: Request) {
       const dish = dbDishes.find((d) => d.id === item.dishId);
       if (!dish) throw new Error(`Plato no encontrado: ${item.dishId}`);
       totalAmount += dish.price * item.qty;
-      return { dishId: dish.id, qty: item.qty, price: dish.price, dishName: dish.name };
-    });
 
-    // ── Calcular costo de platos normales ─────────────────────────────────────
-    for (const item of items) {
-      const dish = dbDishes.find((d: any) => d.id === item.dishId);
-      if (!dish?.recipe) continue;
+      // Calcular costo por ítem para el desglose
+      let itemCost = 0;
       for (const ri of dish.recipe) {
         const product = ri.ingredient?.product;
         if (product && product.packQty > 0) {
-          const unitCost = product.packPrice / product.packQty;
-          totalCost += unitCost * ri.qty * item.qty;
+          itemCost += (product.packPrice / product.packQty) * ri.qty * item.qty;
         }
       }
-    }
+      totalCost += itemCost;
+
+      return { dishId: dish.id, qty: item.qty, price: dish.price, dishName: dish.name, cost: Math.round(itemCost) };
+    });
 
     // ── Procesar platos personalizados ────────────────────────────────────────
     // El costo se calcula desde los ingredientes enviados por el app.
@@ -139,6 +137,7 @@ export async function POST(req: Request) {
                 dishId: it.dishId,
                 qty: it.qty,
                 price: it.price,
+                cost: it.cost,
               })),
             },
             payments: (!isManagement && payments?.length > 0)

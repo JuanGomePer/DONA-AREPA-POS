@@ -1,6 +1,27 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Calendar, TrendingUp, Printer, DollarSign, Crown, MinusCircle, X, Clock } from "lucide-react";
+import { Calendar, TrendingUp, Printer, DollarSign, Crown, MinusCircle, X, Clock, Plus, Trash2 } from "lucide-react";
+
+const OP_CATEGORIES = [
+  "ARRIENDO",
+  "NOMINA",
+  "TURNOS CAJA",
+  "GAS",
+  "LUZ",
+  "AGUA",
+  "CELULAR",
+  "POST / INTERNET",
+  "ACEITE / ASEO",
+  "OTROS",
+];
+
+type OperatingExpense = {
+  id: string;
+  description: string;
+  amount: number;
+  month: number;
+  year: number;
+};
 
 type SessionSummary = {
   id: string;
@@ -46,6 +67,14 @@ export default function AdminReports() {
   const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
 
+  const [opExpenses, setOpExpenses] = useState<OperatingExpense[]>([]);
+  const [opForm, setOpForm] = useState({ description: OP_CATEGORIES[0], amount: "", customDescription: "" });
+  const [showOpForm, setShowOpForm] = useState(false);
+
+  type BreakdownItem = { name: string; category: string; qty: number; revenue: number; cost: number };
+  const [breakdown, setBreakdown] = useState<BreakdownItem[]>([]);
+  const [showBreakdown, setShowBreakdown] = useState(false);
+
   useEffect(() => {
     fetch("/api/admin/reports")
       .then((res) => res.json())
@@ -56,6 +85,54 @@ export default function AdminReports() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!selectedReport?.month || !selectedReport?.year) {
+      setOpExpenses([]);
+      setBreakdown([]);
+      setShowBreakdown(false);
+      return;
+    }
+    const { month, year } = selectedReport;
+    Promise.all([
+      fetch(`/api/admin/contabilidad?month=${month}&year=${year}`).then(r => r.json()),
+      fetch(`/api/admin/reports/breakdown?month=${month}&year=${year}`).then(r => r.json()),
+    ]).then(([ops, bdwn]) => {
+      setOpExpenses(ops);
+      setBreakdown(Array.isArray(bdwn) ? bdwn : []);
+    }).catch(console.error);
+  }, [selectedReport]);
+
+  const addOpExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedReport?.month || !selectedReport?.year) return;
+    const amt = parseInt(opForm.amount);
+    if (!opForm.description || !Number.isFinite(amt) || amt <= 0) return;
+    const finalDesc = opForm.description === "OTROS" && opForm.customDescription.trim()
+      ? opForm.customDescription.trim()
+      : opForm.description;
+    await fetch("/api/admin/contabilidad", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: finalDesc,
+        amount: amt,
+        month: selectedReport.month,
+        year: selectedReport.year,
+      }),
+    });
+    setOpForm({ description: OP_CATEGORIES[0], amount: "", customDescription: "" });
+    setShowOpForm(false);
+    fetch(`/api/admin/contabilidad?month=${selectedReport.month}&year=${selectedReport.year}`)
+      .then(r => r.json())
+      .then(setOpExpenses);
+  };
+
+  const deleteOpExpense = async (id: string) => {
+    if (!selectedReport) return;
+    await fetch(`/api/admin/contabilidad?id=${id}`, { method: "DELETE" });
+    setOpExpenses(prev => prev.filter(e => e.id !== id));
+  };
 
   const formatCurrency = (val: number) => `$${(val || 0).toLocaleString("es-CO")}`;
 
@@ -271,7 +348,7 @@ export default function AdminReports() {
                     <Printer size={18} /> Imprimir
                   </button>
                   <button
-                    onClick={() => setSelectedReport(null)}
+                    onClick={() => { setSelectedReport(null); setShowOpForm(false); setOpExpenses([]); setBreakdown([]); setShowBreakdown(false); setOpForm({ description: OP_CATEGORIES[0], amount: "", customDescription: "" }); }}
                     className="p-2 bg-white/20 hover:bg-white/30 rounded-xl transition-colors"
                   >
                     <X size={20} />
@@ -308,10 +385,48 @@ export default function AdminReports() {
 
               {/* Inversión */}
               <div className="bg-amber-50 rounded-2xl p-5 border border-amber-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <TrendingUp size={18} className="text-amber-600" />
-                  <h4 className="font-black text-sm uppercase text-amber-700">Inversión</h4>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={18} className="text-amber-600" />
+                    <h4 className="font-black text-sm uppercase text-amber-700">Inversión en Insumos</h4>
+                  </div>
+                  {breakdown.length > 0 && (
+                    <button
+                      onClick={() => setShowBreakdown(v => !v)}
+                      className="text-xs font-black text-amber-600 bg-amber-100 hover:bg-amber-200 px-3 py-1 rounded-xl transition-colors"
+                    >
+                      {showBreakdown ? "Ocultar" : "Desglose"}
+                    </button>
+                  )}
                 </div>
+
+                {showBreakdown && breakdown.length > 0 && (
+                  <div className="mb-4 overflow-hidden rounded-xl border border-amber-200">
+                    <table className="w-full text-xs">
+                      <thead className="bg-amber-100">
+                        <tr>
+                          <th className="text-left p-2 font-black text-amber-800">Platillo</th>
+                          <th className="text-center p-2 font-black text-amber-800">Und.</th>
+                          <th className="text-right p-2 font-black text-amber-800">Vendido</th>
+                          <th className="text-right p-2 font-black text-amber-800">Inversión</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {breakdown.map((row, i) => (
+                          <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-amber-50/40"}>
+                            <td className="p-2 font-bold text-gray-700">{row.name}</td>
+                            <td className="p-2 text-center text-gray-500 font-bold">{row.qty}</td>
+                            <td className="p-2 text-right font-bold text-blue-600">{formatCurrency(row.revenue)}</td>
+                            <td className="p-2 text-right font-black text-amber-700">
+                              {row.cost > 0 ? `-${formatCurrency(row.cost)}` : <span className="text-gray-300">—</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
                 <div className="flex justify-between font-black text-amber-800">
                   <span>Total Inversión</span>
                   <span>-{formatCurrency(selectedReport.totalInvestment)}</span>
@@ -319,20 +434,109 @@ export default function AdminReports() {
               </div>
 
               {/* Gastos */}
-              <div className="bg-red-50 rounded-2xl p-5 border border-red-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <MinusCircle size={18} className="text-red-600" />
-                  <h4 className="font-black text-sm uppercase text-red-700">Gastos</h4>
+              {(() => {
+                const opTotal = opExpenses.reduce((s, e) => s + e.amount, 0);
+                const cashExpensesOnly = selectedReport.totalExpenses - opTotal;
+                if (cashExpensesOnly <= 0) return null;
+                return (
+                  <div className="bg-red-50 rounded-2xl p-5 border border-red-100">
+                    <div className="flex items-center gap-2 mb-3">
+                      <MinusCircle size={18} className="text-red-600" />
+                      <h4 className="font-black text-sm uppercase text-red-700">Gastos de Caja</h4>
+                    </div>
+                    <div className="flex justify-between font-black text-red-800">
+                      <span>Total Gastos de Caja</span>
+                      <span>-{formatCurrency(cashExpensesOnly)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Gastos operativos (solo para reportes mensuales) */}
+              {selectedReport.month && (
+                <div className="bg-red-50 rounded-2xl p-5 border border-red-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <MinusCircle size={18} className="text-red-500" />
+                      <h4 className="font-black text-sm uppercase text-red-700">Gastos Operativos del Mes</h4>
+                    </div>
+                    <button
+                      onClick={() => setShowOpForm(v => !v)}
+                      className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-xl font-bold text-xs transition-colors"
+                    >
+                      <Plus size={13} /> Agregar
+                    </button>
+                  </div>
+
+                  {showOpForm && (
+                    <form onSubmit={addOpExpense} className="mb-4 p-4 bg-white rounded-2xl border border-red-100 space-y-3">
+                      <select
+                        value={opForm.description}
+                        onChange={e => setOpForm({ ...opForm, description: e.target.value, customDescription: "" })}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 text-sm outline-none focus:ring-2 focus:ring-red-400"
+                      >
+                        {OP_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                      </select>
+                      {opForm.description === "OTROS" && (
+                        <input
+                          type="text"
+                          placeholder="¿Qué gasto fue?"
+                          value={opForm.customDescription ?? ""}
+                          onChange={e => setOpForm({ ...opForm, customDescription: e.target.value })}
+                          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-800 text-sm outline-none focus:ring-2 focus:ring-red-400"
+                          required
+                          autoFocus
+                        />
+                      )}
+                      <input
+                        type="number"
+                        placeholder="Valor (COP)"
+                        min="1"
+                        value={opForm.amount}
+                        onChange={e => setOpForm({ ...opForm, amount: e.target.value })}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-black text-gray-800 text-sm outline-none focus:ring-2 focus:ring-red-400"
+                        required
+                        autoFocus={opForm.description !== "OTROS"}
+                      />
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setShowOpForm(false)} className="flex-1 py-2 text-gray-400 font-bold text-sm">Cancelar</button>
+                        <button type="submit" className="flex-1 py-2 bg-red-500 text-white rounded-xl font-black text-sm hover:bg-red-600">Guardar</button>
+                      </div>
+                    </form>
+                  )}
+
+                  {opExpenses.length === 0 ? (
+                    <p className="text-red-300 text-sm font-bold text-center py-2">Sin gastos operativos este mes</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {opExpenses.map(exp => (
+                        <div key={exp.id} className="flex justify-between items-center group">
+                          <span className="font-bold text-red-800 text-sm">{exp.description}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-red-700">-{formatCurrency(exp.amount)}</span>
+                            <button
+                              onClick={() => deleteOpExpense(exp.id)}
+                              className="opacity-0 group-hover:opacity-100 text-red-300 hover:text-red-500 transition-all"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="border-t border-red-200 pt-2 flex justify-between">
+                        <span className="font-black text-red-700 text-sm uppercase">Total</span>
+                        <span className="font-black text-red-700">-{formatCurrency(opExpenses.reduce((s, e) => s + e.amount, 0))}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between font-black text-red-800">
-                  <span>Total Gastos</span>
-                  <span>-{formatCurrency(selectedReport.totalExpenses)}</span>
-                </div>
-              </div>
+              )}
 
               {/* Ganancia */}
-              <div className="bg-gray-900 text-white rounded-2xl p-6 text-center">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Ganancia</p>
+              <div className={`rounded-2xl p-6 text-center ${selectedReport.profit >= 0 ? "bg-gray-900" : "bg-red-700"} text-white`}>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
+                  {opExpenses.length > 0 ? "Ganancia libre" : "Ganancia"}
+                </p>
                 <p className="text-4xl font-black">{formatCurrency(selectedReport.profit)}</p>
               </div>
 
