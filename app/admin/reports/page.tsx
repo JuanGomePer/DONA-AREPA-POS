@@ -71,7 +71,7 @@ export default function AdminReports() {
   const [opForm, setOpForm] = useState({ description: OP_CATEGORIES[0], amount: "", customDescription: "" });
   const [showOpForm, setShowOpForm] = useState(false);
 
-  type BreakdownItem = { name: string; category: string; qty: number; revenue: number; cost: number };
+  type BreakdownItem = { name: string; unit: string; qty: number; cost: number };
   const [breakdown, setBreakdown] = useState<BreakdownItem[]>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
 
@@ -154,78 +154,211 @@ export default function AdminReports() {
       ? `Semana del ${getWeekRange(report.weekStart!)}`
       : `${getMonthName(report.month!)} ${report.year}`;
 
-    const sold = report.totalReal;
-    const investment = report.totalInvestment;
-    const expenses = report.totalExpenses;
-    const profit = report.profit;
+    const opTotal      = opExpenses.reduce((s, e) => s + e.amount, 0);
+    const cashExpOnly  = report.totalExpenses - opTotal;
+    const gananciaLibre = report.profit;
 
-    const html = `<!DOCTYPE html><html><head><title>Reporte - ${title}</title>
-    <style>
-      * { margin:0; padding:0; box-sizing:border-box; }
-      body { font-family:'Arial',sans-serif; padding:30px; max-width:800px; margin:auto; }
-      h1 { font-size:24px; margin-bottom:5px; }
-      .subtitle { font-size:14px; color:#666; margin-bottom:20px; }
-      .divider { border-top:2px solid #000; margin:20px 0; }
-      .section { margin:20px 0; }
-      .section-title { font-size:16px; font-weight:bold; text-transform:uppercase; color:#444; margin-bottom:10px; }
-      .row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eee; }
-      .row.bold { font-weight:bold; font-size:18px; }
-      .indent { padding-left:20px; color:#555; }
-      .total-box { background:#f0f0f0; padding:20px; border-radius:8px; text-align:center; margin:20px 0; }
-      .total-box .label { font-size:12px; color:#666; text-transform:uppercase; }
-      .total-box .value { font-size:32px; font-weight:bold; color:#000; }
-      .session-item { background:#f9f9f9; padding:12px; margin:8px 0; border-left:4px solid #3b82f6; }
-      .footer { text-align:center; font-size:11px; color:#999; margin-top:30px; }
-    </style></head><body>
-      <h1>DONA AREPA — REPORTE ${isWeekly ? "SEMANAL" : "MENSUAL"}</h1>
-      <p class="subtitle">${title}</p>
-      <div class="divider"></div>
+    const fmt = (n: number) => `$${(n || 0).toLocaleString("es-CO")}`;
 
-      <div class="section">
-        <div class="section-title">Resumen</div>
-        <div class="row"><span>Vendido</span><span>${formatCurrency(sold)}</span></div>
-        <div class="row"><span>Inversión</span><span>-${formatCurrency(investment)}</span></div>
-        <div class="row"><span>Gastos</span><span>-${formatCurrency(expenses)}</span></div>
-        <div class="row bold"><span>Ganancia</span><span>${formatCurrency(profit)}</span></div>
-      </div>
+    const ingRows = breakdown.map(row => `
+      <tr>
+        <td>${row.name}</td>
+        <td class="num">${row.qty % 1 === 0 ? row.qty : row.qty.toFixed(2)} ${row.unit}</td>
+        <td class="num neg">${row.cost > 0 ? fmt(row.cost) : "—"}</td>
+      </tr>`).join("");
 
-      <div class="divider"></div>
+    const opRows = opExpenses.map(e => `
+      <tr>
+        <td>${e.description}</td>
+        <td class="num neg">${fmt(e.amount)}</td>
+      </tr>`).join("");
 
-      <div class="section">
-        <div class="section-title">Ventas por método</div>
-        ${Object.values(report.byMethod)
-          .map((m) => `<div class="row indent"><span>${m.name}</span><span>${formatCurrency(m.amount)}</span></div>`)
-          .join("") || '<div class="row indent"><span>Sin ventas</span><span>$0</span></div>'}
-      </div>
+    const sessionRows = report.sessions.map(s => `
+      <tr>
+        <td>${new Date(s.openedAt).toLocaleDateString("es-CO", { weekday:"short", day:"2-digit", month:"short" })}</td>
+        <td>${new Date(s.openedAt).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})} – ${new Date(s.closedAt).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}</td>
+        <td class="num">${fmt(s.totalReal)}</td>
+        <td class="num neg">${fmt(s.investment)}</td>
+        <td class="num neg">${fmt(s.totalExpenses)}</td>
+        <td class="num ${s.profit >= 0 ? "pos" : "neg2"}">${fmt(s.profit)}</td>
+      </tr>`).join("");
 
-      <div class="divider"></div>
+    const html = `<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="UTF-8">
+<title>Balance ${title} — Doña Arepa</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',Arial,sans-serif;font-size:12px;color:#111;background:#fff;padding:32px 40px;max-width:860px;margin:auto}
 
-      <div class="section">
-        <div class="section-title">Turnos (${report.sessions.length})</div>
-        ${report.sessions.map(s => `
-          <div class="session-item">
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-              <span style="font-weight:bold;">${new Date(s.openedAt).toLocaleDateString("es-CO")}</span>
-              <span>${formatCurrency(s.totalReal)}</span>
-            </div>
-            <div style="font-size:11px; color:#666;">
-              Vendido: ${formatCurrency(s.totalReal)} • Inversión: ${formatCurrency(s.investment)} • Gastos: ${formatCurrency(s.totalExpenses)} • Ganancia: ${formatCurrency(s.profit)}
-            </div>
-          </div>
-        `).join("")}
-      </div>
+  /* ── Header ── */
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px}
+  .brand{font-size:22px;font-weight:900;letter-spacing:-0.5px}
+  .brand span{color:#2563eb}
+  .meta{text-align:right;color:#555;font-size:11px;line-height:1.7}
+  .period{font-size:15px;font-weight:700;color:#111;margin-top:2px}
 
-      <div class="total-box">
-        <div class="label">Ganancia</div>
-        <div class="value">${formatCurrency(profit)}</div>
-      </div>
+  /* ── Divider ── */
+  hr{border:none;border-top:2px solid #111;margin:18px 0}
+  hr.light{border-top:1px solid #e5e7eb;margin:10px 0}
 
-      <div class="footer">
-        Generado: ${new Date().toLocaleString("es-CO")}
-      </div>
-    </body></html>`;
+  /* ── Section title ── */
+  .sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:8px;margin-top:20px}
 
-    const w = window.open("", "_blank", "width=800,height=900");
+  /* ── Summary grid ── */
+  .summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px}
+  .card{border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px}
+  .card .label{font-size:10px;color:#9ca3af;text-transform:uppercase;font-weight:600;margin-bottom:4px}
+  .card .value{font-size:20px;font-weight:900}
+  .card.blue .value{color:#2563eb}
+  .card.amber .value{color:#d97706}
+  .card.red .value{color:#dc2626}
+  .card.green .value{color:#16a34a}
+  .card.dark{background:#111;border-color:#111;grid-column:1/-1}
+  .card.dark .label{color:#9ca3af}
+  .card.dark .value{color:#fff;font-size:28px}
+
+  /* ── Tables ── */
+  table{width:100%;border-collapse:collapse;margin-top:4px}
+  th{background:#f3f4f6;font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;padding:7px 10px;text-align:left}
+  td{padding:7px 10px;border-bottom:1px solid #f3f4f6;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .num{text-align:right;font-weight:600}
+  .neg{color:#dc2626}
+  .neg2{color:#dc2626;font-weight:700}
+  .pos{color:#16a34a;font-weight:700}
+  tfoot td{font-weight:700;font-size:11px;background:#f9fafb;border-top:2px solid #e5e7eb}
+
+  /* ── Footer ── */
+  .footer{margin-top:36px;border-top:1px solid #e5e7eb;padding-top:12px;display:flex;justify-content:space-between;color:#9ca3af;font-size:10px}
+
+  @media print{body{padding:16px 20px}}
+</style>
+</head><body>
+
+  <div class="header">
+    <div>
+      <div class="brand">DOÑA<span>AREPA</span></div>
+      <div style="font-size:13px;font-weight:600;color:#374151;margin-top:4px">Balance ${isWeekly ? "Semanal" : "Mensual"}</div>
+      <div class="period">${title}</div>
+    </div>
+    <div class="meta">
+      <div>NIT / Razón social: Doña Arepa</div>
+      <div>Generado: ${new Date().toLocaleString("es-CO")}</div>
+      <div>${report.sessions.length} turno${report.sessions.length !== 1 ? "s" : ""} · ${report.sessions.reduce((a,s)=>a+s.realCount,0)} órdenes</div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- RESUMEN FINANCIERO -->
+  <div class="sec">Resumen Financiero</div>
+  <div class="summary">
+    <div class="card blue">
+      <div class="label">Total Vendido</div>
+      <div class="value">${fmt(report.totalReal)}</div>
+    </div>
+    <div class="card amber">
+      <div class="label">Inversión en Insumos</div>
+      <div class="value">${fmt(report.totalInvestment)}</div>
+    </div>
+    ${cashExpOnly > 0 ? `
+    <div class="card red">
+      <div class="label">Gastos de Caja</div>
+      <div class="value">${fmt(cashExpOnly)}</div>
+    </div>` : ""}
+    ${opTotal > 0 ? `
+    <div class="card red">
+      <div class="label">Gastos Operativos</div>
+      <div class="value">${fmt(opTotal)}</div>
+    </div>` : ""}
+    <div class="card dark ${cashExpOnly > 0 || opTotal > 0 ? "" : ""}">
+      <div class="label">Ganancia Libre</div>
+      <div class="value">${fmt(gananciaLibre)}</div>
+    </div>
+  </div>
+
+  <hr class="light">
+
+  <!-- VENTAS POR MÉTODO -->
+  <div class="sec">Ventas por Método de Pago</div>
+  <table>
+    <thead><tr><th>Método</th><th class="num">Monto</th><th class="num">% del Total</th></tr></thead>
+    <tbody>
+      ${Object.values(report.byMethod).map(m => `
+        <tr>
+          <td>${m.name}</td>
+          <td class="num">${fmt(m.amount)}</td>
+          <td class="num" style="color:#6b7280">${report.totalReal > 0 ? ((m.amount/report.totalReal)*100).toFixed(1)+"%" : "—"}</td>
+        </tr>`).join("") || `<tr><td colspan="3" style="color:#9ca3af;text-align:center">Sin ventas registradas</td></tr>`}
+    </tbody>
+  </table>
+
+  ${breakdown.length > 0 ? `
+  <hr class="light">
+  <!-- DESGLOSE INVERSIÓN -->
+  <div class="sec">Desglose de Inversión por Ingrediente</div>
+  <table>
+    <thead><tr><th>Ingrediente</th><th class="num">Cantidad consumida</th><th class="num">Costo</th></tr></thead>
+    <tbody>${ingRows}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="2">Total inversión en insumos</td>
+        <td class="num neg">${fmt(report.totalInvestment)}</td>
+      </tr>
+    </tfoot>
+  </table>` : ""}
+
+  ${opExpenses.length > 0 ? `
+  <hr class="light">
+  <!-- GASTOS OPERATIVOS -->
+  <div class="sec">Gastos Operativos del Mes</div>
+  <table>
+    <thead><tr><th>Concepto</th><th class="num">Valor</th></tr></thead>
+    <tbody>${opRows}</tbody>
+    <tfoot>
+      <tr>
+        <td>Total gastos operativos</td>
+        <td class="num neg">${fmt(opTotal)}</td>
+      </tr>
+    </tfoot>
+  </table>` : ""}
+
+  <hr class="light">
+  <!-- TURNOS -->
+  <div class="sec">Detalle de Turnos (${report.sessions.length})</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Horario</th>
+        <th class="num">Vendido</th>
+        <th class="num">Inversión</th>
+        <th class="num">Gastos</th>
+        <th class="num">Ganancia</th>
+      </tr>
+    </thead>
+    <tbody>${sessionRows}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="2">TOTALES</td>
+        <td class="num">${fmt(report.totalReal)}</td>
+        <td class="num neg">${fmt(report.totalInvestment)}</td>
+        <td class="num neg">${fmt(report.totalExpenses)}</td>
+        <td class="num ${report.profit >= 0 ? "pos" : "neg2"}">${fmt(report.profit)}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="footer">
+    <span>Doña Arepa — Sistema POS</span>
+    <span>Documento generado el ${new Date().toLocaleString("es-CO")} · Confidencial</span>
+  </div>
+
+</body></html>`;
+
+    const w = window.open("", "_blank", "width=900,height=1000");
     if (w) {
       w.document.write(html);
       w.document.close();
@@ -405,18 +538,18 @@ export default function AdminReports() {
                     <table className="w-full text-xs">
                       <thead className="bg-amber-100">
                         <tr>
-                          <th className="text-left p-2 font-black text-amber-800">Platillo</th>
-                          <th className="text-center p-2 font-black text-amber-800">Und.</th>
-                          <th className="text-right p-2 font-black text-amber-800">Vendido</th>
-                          <th className="text-right p-2 font-black text-amber-800">Inversión</th>
+                          <th className="text-left p-2 font-black text-amber-800">Ingrediente</th>
+                          <th className="text-right p-2 font-black text-amber-800">Cantidad</th>
+                          <th className="text-right p-2 font-black text-amber-800">Costo</th>
                         </tr>
                       </thead>
                       <tbody>
                         {breakdown.map((row, i) => (
                           <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-amber-50/40"}>
                             <td className="p-2 font-bold text-gray-700">{row.name}</td>
-                            <td className="p-2 text-center text-gray-500 font-bold">{row.qty}</td>
-                            <td className="p-2 text-right font-bold text-blue-600">{formatCurrency(row.revenue)}</td>
+                            <td className="p-2 text-right text-gray-500 font-bold">
+                              {row.qty % 1 === 0 ? row.qty : row.qty.toFixed(2)} {row.unit}
+                            </td>
                             <td className="p-2 text-right font-black text-amber-700">
                               {row.cost > 0 ? `-${formatCurrency(row.cost)}` : <span className="text-gray-300">—</span>}
                             </td>
