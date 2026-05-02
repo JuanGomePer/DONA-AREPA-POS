@@ -75,6 +75,7 @@ export default function AdminReports() {
   const [breakdown, setBreakdown] = useState<BreakdownItem[]>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/reports")
@@ -147,6 +148,78 @@ export default function AdminReports() {
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     return `${start.getDate()}/${start.getMonth() + 1} - ${end.getDate()}/${end.getMonth() + 1}/${end.getFullYear()}`;
+  };
+
+  const downloadPdf = async (html: string) => {
+    setIsDownloading(true);
+    try {
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+        import("jspdf"),
+        import("html2canvas"),
+      ]);
+
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:900px;height:1px;border:none;";
+      document.body.appendChild(iframe);
+
+      try {
+        iframe.contentDocument!.open();
+        iframe.contentDocument!.write(html);
+        iframe.contentDocument!.close();
+
+        await new Promise<void>((resolve) => {
+          if (iframe.contentDocument!.readyState === "complete") resolve();
+          else iframe.onload = () => resolve();
+        });
+        await new Promise((r) => setTimeout(r, 800));
+
+        const body = iframe.contentDocument!.body;
+        const totalHeight = body.scrollHeight;
+        iframe.style.height = totalHeight + "px";
+        await new Promise((r) => setTimeout(r, 200));
+
+        const canvas = await html2canvas(body, {
+          scale: 1.5,
+          useCORS: true,
+          width: 900,
+          height: totalHeight,
+          windowWidth: 900,
+        });
+
+        const A4_W = 210;
+        const A4_H = 297;
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const pxPerMm = canvas.width / A4_W;
+        const pageHeightPx = A4_H * pxPerMm;
+        let yOffset = 0;
+        let page = 0;
+
+        while (yOffset < canvas.height) {
+          if (page > 0) pdf.addPage();
+          const sliceH = Math.min(pageHeightPx, canvas.height - yOffset);
+          const sliceCanvas = document.createElement("canvas");
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceH;
+          sliceCanvas.getContext("2d")!.drawImage(canvas, 0, yOffset, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+          pdf.addImage(sliceCanvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, A4_W, sliceH / pxPerMm);
+          yOffset += pageHeightPx;
+          page++;
+        }
+
+        const title = selectedReport
+          ? selectedReport.weekKey
+            ? `semana-${selectedReport.weekStart?.slice(0, 10)}`
+            : `${getMonthName(selectedReport.month!)}-${selectedReport.year}`.toLowerCase()
+          : "reporte";
+        pdf.save(`reporte-${title}.pdf`);
+      } finally {
+        document.body.removeChild(iframe);
+      }
+    } catch (e) {
+      console.error("Error generando PDF:", e);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const previewReport = (report: Report) => {
@@ -459,15 +532,12 @@ export default function AdminReports() {
             <span className="font-black text-sm uppercase tracking-wider">Vista previa del reporte</span>
             <div className="flex gap-3">
               <button
-                onClick={() => {
-                  const blob = new Blob([previewHtml], { type: "text/html" });
-                  const url = URL.createObjectURL(blob);
-                  const w = window.open(url, "_blank");
-                  setTimeout(() => { w?.print(); URL.revokeObjectURL(url); }, 600);
-                }}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl font-bold text-sm transition-colors"
+                onClick={() => downloadPdf(previewHtml)}
+                disabled={isDownloading}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-wait px-4 py-2 rounded-xl font-bold text-sm transition-colors"
               >
-                <Download size={16} /> Guardar PDF
+                <Download size={16} />
+                {isDownloading ? "Generando..." : "Descargar PDF"}
               </button>
               <button
                 onClick={() => setPreviewHtml(null)}
