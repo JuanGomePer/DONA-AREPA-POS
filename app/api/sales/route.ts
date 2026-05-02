@@ -212,11 +212,13 @@ export async function POST(req: Request) {
       ...itemsWithPrice.map((it: any) => ({
         qty: it.qty,
         price: it.price,
+        cost: it.cost,
         dish: { name: it.dishName },
       })),
       ...(customItems ?? []).map((ci: any) => ({
         qty: 1,
         price: Math.round(ci.price),
+        cost: 0,
         dish: { name: ci.name },
       })),
     ];
