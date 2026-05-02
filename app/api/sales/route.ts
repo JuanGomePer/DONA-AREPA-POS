@@ -229,6 +229,7 @@ export async function POST(req: Request) {
         id: sale.id,
         ticketNo: sale.ticketNo,
         total: totalAmount,
+        cost: Math.round(totalCost),
         createdAt: sale.createdAt,
         isManagement,
         items: responseItems,

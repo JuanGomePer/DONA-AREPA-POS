@@ -68,6 +68,7 @@ export async function GET() {
           })),
         })),
         managementCount: managementSales.length,
+        managementCost: managementSales.reduce((acc: number, s: any) => acc + (s.cost ?? 0), 0),
       },
     });
   } catch (error) {
