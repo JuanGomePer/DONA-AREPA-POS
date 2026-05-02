@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Calendar, TrendingUp, Printer, DollarSign, Crown, MinusCircle, X, Clock, Plus, Trash2 } from "lucide-react";
+import { Calendar, TrendingUp, FileText, Download, DollarSign, Crown, MinusCircle, X, Clock, Plus, Trash2 } from "lucide-react";
 
 const OP_CATEGORIES = [
   "ARRIENDO",
@@ -74,6 +74,7 @@ export default function AdminReports() {
   type BreakdownItem = { name: string; unit: string; qty: number; cost: number };
   const [breakdown, setBreakdown] = useState<BreakdownItem[]>([]);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/reports")
@@ -148,7 +149,7 @@ export default function AdminReports() {
     return `${start.getDate()}/${start.getMonth() + 1} - ${end.getDate()}/${end.getMonth() + 1}/${end.getFullYear()}`;
   };
 
-  const printReport = (report: Report) => {
+  const previewReport = (report: Report) => {
     const isWeekly = !!report.weekKey;
     const title = isWeekly
       ? `Semana del ${getWeekRange(report.weekStart!)}`
@@ -358,12 +359,7 @@ export default function AdminReports() {
 
 </body></html>`;
 
-    const w = window.open("", "_blank", "width=900,height=1000");
-    if (w) {
-      w.document.write(html);
-      w.document.close();
-      w.print();
-    }
+    setPreviewHtml(html);
   };
 
   if (loading) return <div className="p-8 font-black animate-pulse text-blue-600">GENERANDO REPORTES...</div>;
@@ -456,6 +452,39 @@ export default function AdminReports() {
         </div>
       )}
 
+      {/* MODAL VISTA PREVIA */}
+      {previewHtml && (
+        <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col">
+          <div className="flex items-center justify-between px-6 py-3 bg-gray-900 text-white shrink-0">
+            <span className="font-black text-sm uppercase tracking-wider">Vista previa del reporte</span>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const blob = new Blob([previewHtml], { type: "text/html" });
+                  const url = URL.createObjectURL(blob);
+                  const w = window.open(url, "_blank");
+                  setTimeout(() => { w?.print(); URL.revokeObjectURL(url); }, 600);
+                }}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl font-bold text-sm transition-colors"
+              >
+                <Download size={16} /> Guardar PDF
+              </button>
+              <button
+                onClick={() => setPreviewHtml(null)}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+          <iframe
+            srcDoc={previewHtml}
+            className="flex-1 w-full bg-white"
+            title="Vista previa del reporte"
+          />
+        </div>
+      )}
+
       {/* MODAL DETALLE */}
       {selectedReport && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -475,10 +504,10 @@ export default function AdminReports() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => printReport(selectedReport)}
+                    onClick={() => previewReport(selectedReport)}
                     className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-xl font-bold transition-colors"
                   >
-                    <Printer size={18} /> Imprimir
+                    <FileText size={18} /> Vista previa
                   </button>
                   <button
                     onClick={() => { setSelectedReport(null); setShowOpForm(false); setOpExpenses([]); setBreakdown([]); setShowBreakdown(false); setOpForm({ description: OP_CATEGORIES[0], amount: "", customDescription: "" }); }}
