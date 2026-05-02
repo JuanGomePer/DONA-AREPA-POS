@@ -422,15 +422,11 @@ export default function AdminReports() {
 
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-gray-400 uppercase">Ganancia</span>
-                    <span className="text-2xl font-black text-green-600">{formatCurrency(report.profit)}</span>
+                    <span className="text-xs font-bold text-gray-400 uppercase">Vendido</span>
+                    <span className="text-2xl font-black text-blue-600">{formatCurrency(report.totalReal)}</span>
                   </div>
 
                   <div className="pt-3 border-t border-gray-200 space-y-1.5">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 font-medium">Vendido</span>
-                      <span className="font-bold text-blue-600">{formatCurrency(report.totalReal)}</span>
-                    </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500 font-medium">Materia Prima</span>
                       <span className="font-bold text-amber-600">-{formatCurrency(report.totalInvestment)}</span>
@@ -438,6 +434,10 @@ export default function AdminReports() {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500 font-medium">Gastos</span>
                       <span className="font-bold text-red-600">-{formatCurrency(report.totalExpenses)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500 font-medium">Ganancia</span>
+                      <span className="font-bold text-green-600">{formatCurrency(report.profit)}</span>
                     </div>
                   </div>
 

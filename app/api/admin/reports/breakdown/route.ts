@@ -22,8 +22,7 @@ export async function GET(req: NextRequest) {
   const items = await prisma.saleItem.findMany({
     where: {
       sale: {
-        createdAt:    { gte: start, lt: end },
-        isManagement: false,
+        createdAt: { gte: start, lt: end },
       },
     },
     select: {
