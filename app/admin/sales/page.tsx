@@ -176,7 +176,7 @@ export default function AdminSales() {
                                 <span className="text-xs font-black text-purple-700 uppercase">
                                   {new Date(sale.createdAt).toLocaleString("es-CO")}
                                 </span>
-                                <span className="text-sm font-black text-purple-800">{formatCurrency(sale.total)}</span>
+                                <span className="text-sm font-black text-purple-800">{formatCurrency(sale.cost)}</span>
                               </div>
 
                               <div className="space-y-1">
@@ -185,7 +185,7 @@ export default function AdminSales() {
                                     <span className="truncate mr-3">
                                       {it.qty}× {it.dish.name}
                                     </span>
-                                    <span className="shrink-0">{formatCurrency(it.qty * it.price)}</span>
+                                    <span className="shrink-0">{formatCurrency(it.cost)}</span>
                                   </div>
                                 ))}
                               </div>
