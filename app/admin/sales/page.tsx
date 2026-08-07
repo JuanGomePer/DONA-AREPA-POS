@@ -66,6 +66,7 @@ export default function AdminSales() {
                     <div>
                       <h3 className="font-black text-xl text-gray-800">
                         {new Date(session.openedAt).toLocaleDateString("es-CO", {
+                          timeZone: "America/Bogota",
                           day: "2-digit",
                           month: "long",
                           year: "numeric",
@@ -75,9 +76,10 @@ export default function AdminSales() {
                       <div className="flex items-center gap-3 mt-1">
                         <span className="flex items-center gap-1 text-xs font-bold text-gray-600 uppercase tracking-tight">
                           <Clock size={14} />{" "}
-                          {new Date(session.openedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {new Date(session.openedAt).toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit" })}
                           {session.closedAt
-                            ? ` — ${new Date(session.closedAt).toLocaleTimeString([], {
+                            ? ` — ${new Date(session.closedAt).toLocaleTimeString("es-CO", {
+                                timeZone: "America/Bogota",
                                 hour: "2-digit",
                                 minute: "2-digit",
                               })}`
@@ -174,7 +176,7 @@ export default function AdminSales() {
                             <div key={sale.id} className="bg-white/70 border border-purple-100 rounded-2xl p-4">
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-xs font-black text-purple-700 uppercase">
-                                  {new Date(sale.createdAt).toLocaleString("es-CO")}
+                                  {new Date(sale.createdAt).toLocaleString("es-CO", { timeZone: "America/Bogota" })}
                                 </span>
                                 <span className="text-sm font-black text-purple-800">{formatCurrency(sale.cost)}</span>
                               </div>

@@ -74,7 +74,7 @@ export default function ReceiptPage(props: { params: Params; searchParams: Searc
         <div className="text-center mb-4 border-b-2 border-black border-dashed pb-4">
           <h2 className="text-2xl font-black uppercase italic">Dona Arepa</h2>
           <p className="text-xs font-bold uppercase tracking-widest">Punto de Venta</p>
-          <p className="text-[10px] text-gray-500">{new Date(sale.createdAt).toLocaleString("es-CO")}</p>
+          <p className="text-[10px] text-gray-500">{new Date(sale.createdAt).toLocaleString("es-CO", { timeZone: "America/Bogota" })}</p>
           {/* Badge gerencia */}
           {isManagement && (
             <div className="mt-2 inline-flex items-center gap-1.5 bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">

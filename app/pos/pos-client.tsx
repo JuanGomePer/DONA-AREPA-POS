@@ -253,8 +253,8 @@ export default function PosClient({
       <p class="sub">PUNTO DE VENTA — CIERRE</p>
 
       <div class="divider"></div>
-      <div class="row"><span>Apertura:</span><span>${new Date(report.openedAt).toLocaleString("es-CO")}</span></div>
-      <div class="row"><span>Corte:</span><span>${new Date().toLocaleString("es-CO")}</span></div>
+      <div class="row"><span>Apertura:</span><span>${new Date(report.openedAt).toLocaleString("es-CO", { timeZone: "America/Bogota" })}</span></div>
+      <div class="row"><span>Corte:</span><span>${new Date().toLocaleString("es-CO", { timeZone: "America/Bogota" })}</span></div>
 
       <div class="divider"></div>
       <p class="section">Base</p>
@@ -276,7 +276,7 @@ export default function PosClient({
       ${report.managementCount > 0 ? `
         <p class="section">Gerencia (${report.managementCount})</p>
         ${report.managementOrders.map((o: any) => `
-          <div class="row bold"><span>${new Date(o.createdAt).toLocaleString("es-CO")}</span><span>${formatCurrency(o.total)}</span></div>
+          <div class="row bold"><span>${new Date(o.createdAt).toLocaleString("es-CO", { timeZone: "America/Bogota" })}</span><span>${formatCurrency(o.total)}</span></div>
           ${(o.items || []).map((it: any) => `
             <div class="row indent">
               <span>${it.qty}x ${it.dishName}</span>
@@ -287,7 +287,7 @@ export default function PosClient({
         `).join("")}
       ` : ""}
 
-      <p class="footer">Generado: ${new Date().toLocaleString("es-CO")}</p>
+      <p class="footer">Generado: ${new Date().toLocaleString("es-CO", { timeZone: "America/Bogota" })}</p>
     </body></html>`;
 
     const w = window.open("", "_blank", "width=420,height=650");
@@ -737,8 +737,8 @@ export default function PosClient({
         const efectivoNeto = cashSales - gasto;
         const totalCheck = efectivoNeto + otherMethods.reduce((a, m) => a + m.amount, 0) + gasto;
 
-        const openedAtStr = new Date(report.openedAt).toLocaleString("es-CO");
-        const cutAtStr = new Date().toLocaleString("es-CO");
+        const openedAtStr = new Date(report.openedAt).toLocaleString("es-CO", { timeZone: "America/Bogota" });
+        const cutAtStr = new Date().toLocaleString("es-CO", { timeZone: "America/Bogota" });
 
         return (
           <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-4 z-50">
@@ -804,7 +804,7 @@ export default function PosClient({
                       <div key={o.id} className="mb-4 last:mb-0 bg-white/60 rounded-2xl p-4 border border-purple-100">
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-xs font-black text-purple-700 uppercase">
-                            {new Date(o.createdAt).toLocaleString("es-CO")}
+                            {new Date(o.createdAt).toLocaleString("es-CO", { timeZone: "America/Bogota" })}
                           </span>
                           <span className="text-sm font-black text-purple-800">
                             {formatCurrency(o.total)}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/getSession";
+import { coMonthRangeUTC } from "@/lib/date";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -16,13 +17,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Faltan mes y año" }, { status: 400 });
   }
 
-  const start = new Date(year, month - 1, 1);
-  const end   = new Date(year, month, 1);
+  // Ventana del mes en hora de Colombia (no del servidor).
+  const { start, end } = coMonthRangeUTC(year, month);
 
+  // El consumo se atribuye al mes en que ABRIÓ el turno (la sesión),
+  // no a la hora de cada venta. Así una venta de madrugada cuenta en
+  // el mismo mes que el resto del turno.
   const items = await prisma.saleItem.findMany({
     where: {
       sale: {
-        createdAt: { gte: start, lt: end },
+        session: { openedAt: { gte: start, lt: end } },
       },
     },
     select: {

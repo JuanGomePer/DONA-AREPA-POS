@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Calendar, TrendingUp, FileText, Download, DollarSign, Crown, MinusCircle, X, Clock, Plus, Trash2 } from "lucide-react";
+import { formatCO } from "@/lib/date";
 
 const OP_CATEGORIES = [
   "ARRIENDO",
@@ -145,9 +146,11 @@ export default function AdminReports() {
 
   const getWeekRange = (weekStart: string) => {
     const start = new Date(weekStart);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return `${start.getDate()}/${start.getMonth() + 1} - ${end.getDate()}/${end.getMonth() + 1}/${end.getFullYear()}`;
+    const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+    const dm = (d: Date) =>
+      formatCO(d, { day: "numeric", month: "numeric", timeZone: "America/Bogota" });
+    const y = formatCO(end, { year: "numeric", timeZone: "America/Bogota" });
+    return `${dm(start)} - ${dm(end)}/${y}`;
   };
 
   const downloadPdf = async (html: string) => {
@@ -249,8 +252,8 @@ export default function AdminReports() {
 
     const sessionRows = report.sessions.map(s => `
       <tr>
-        <td>${new Date(s.openedAt).toLocaleDateString("es-CO", { weekday:"short", day:"2-digit", month:"short" })}</td>
-        <td>${new Date(s.openedAt).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})} – ${new Date(s.closedAt).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})}</td>
+        <td>${new Date(s.openedAt).toLocaleDateString("es-CO", { timeZone:"America/Bogota", weekday:"short", day:"2-digit", month:"short" })}</td>
+        <td>${new Date(s.openedAt).toLocaleTimeString("es-CO",{timeZone:"America/Bogota",hour:"2-digit",minute:"2-digit"})} – ${new Date(s.closedAt).toLocaleTimeString("es-CO",{timeZone:"America/Bogota",hour:"2-digit",minute:"2-digit"})}</td>
         <td class="num">${fmt(s.totalReal)}</td>
         <td class="num neg">${fmt(s.investment)}</td>
         <td class="num neg">${fmt(s.totalExpenses)}</td>
@@ -319,7 +322,7 @@ export default function AdminReports() {
     </div>
     <div class="meta">
       <div>NIT / Razón social: Doña Arepa</div>
-      <div>Generado: ${new Date().toLocaleString("es-CO")}</div>
+      <div>Generado: ${new Date().toLocaleString("es-CO", { timeZone: "America/Bogota" })}</div>
       <div>${report.sessions.length} turno${report.sessions.length !== 1 ? "s" : ""} · ${report.sessions.reduce((a,s)=>a+s.realCount,0)} órdenes</div>
     </div>
   </div>
@@ -427,7 +430,7 @@ export default function AdminReports() {
 
   <div class="footer">
     <span>Doña Arepa — Sistema POS</span>
-    <span>Documento generado el ${new Date().toLocaleString("es-CO")} · Confidencial</span>
+    <span>Documento generado el ${new Date().toLocaleString("es-CO", { timeZone: "America/Bogota" })} · Confidencial</span>
   </div>
 
 </body></html>`;
@@ -787,6 +790,7 @@ export default function AdminReports() {
                           <Clock size={16} className="text-gray-400" />
                           <span className="font-black text-gray-800">
                             {new Date(session.openedAt).toLocaleDateString("es-CO", {
+                              timeZone: "America/Bogota",
                               weekday: "short",
                               day: "2-digit",
                               month: "short",
@@ -794,8 +798,8 @@ export default function AdminReports() {
                           </span>
                         </div>
                         <span className="text-xs text-gray-400 font-medium">
-                          {new Date(session.openedAt).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} -{" "}
-                          {new Date(session.closedAt).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
+                          {new Date(session.openedAt).toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit" })} -{" "}
+                          {new Date(session.closedAt).toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
 

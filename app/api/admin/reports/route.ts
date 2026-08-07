@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/getSession";
+import { coDate } from "@/lib/date";
 
+// Recibe una fecha YA en hora de pared de Colombia (ver coDate) y
+// devuelve el lunes de esa semana, operando con métodos UTC.
 function getMonday(d: Date) {
   const date = new Date(d);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(date.setDate(diff));
+  const day = date.getUTCDay();
+  const diff = date.getUTCDate() - day + (day === 0 ? -6 : 1);
+  date.setUTCDate(diff);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
 }
 
 export async function GET() {
@@ -49,16 +54,20 @@ export async function GET() {
     for (const sess of sessions) {
       if (!sess.closedAt) continue;
 
-      const closeDate = new Date(sess.closedAt);
-      const monday = getMonday(new Date(closeDate));
-      const weekKey = `${monday.getFullYear()}-W${String(
+      // El turno pertenece al día en que se ABRIÓ (aunque cierre de
+      // madrugada del día siguiente). Agrupamos por openedAt en hora
+      // de pared de Colombia.
+      const bizDate = coDate(sess.openedAt);
+      const monday = getMonday(new Date(bizDate));
+      const weekKey = `${monday.getUTCFullYear()}-W${String(
         Math.ceil(
-          (monday.getTime() - new Date(monday.getFullYear(), 0, 1).getTime()) /
+          (monday.getTime() -
+            Date.UTC(monday.getUTCFullYear(), 0, 1)) /
             (7 * 24 * 60 * 60 * 1000)
         )
       ).padStart(2, "0")}`;
-      const monthKey = `${closeDate.getFullYear()}-${String(
-        closeDate.getMonth() + 1
+      const monthKey = `${bizDate.getUTCFullYear()}-${String(
+        bizDate.getUTCMonth() + 1
       ).padStart(2, "0")}`;
 
       const realSales = sess.sales.filter((s: any) => !s.isManagement);
@@ -105,7 +114,9 @@ export async function GET() {
       if (!weeklyMap.has(weekKey)) {
         weeklyMap.set(weekKey, {
           weekKey,
-          weekStart: new Date(monday),
+          // Instante UTC real del lunes 00:00 hora Colombia (monday viene
+          // desplazado -5h; sumamos para recuperar el instante verdadero).
+          weekStart: new Date(monday.getTime() + 5 * 60 * 60 * 1000),
           sessions: [],
           totalReal: 0,
           totalMgmt: 0,
@@ -131,8 +142,8 @@ export async function GET() {
       if (!monthlyMap.has(monthKey)) {
         monthlyMap.set(monthKey, {
           monthKey,
-          year: closeDate.getFullYear(),
-          month: closeDate.getMonth() + 1,
+          year: bizDate.getUTCFullYear(),
+          month: bizDate.getUTCMonth() + 1,
           sessions: [],
           totalReal: 0,
           totalMgmt: 0,

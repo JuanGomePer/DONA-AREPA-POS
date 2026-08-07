@@ -39,6 +39,7 @@ function fmtDate(iso: string) {
   try {
     const d = new Date(iso);
     return new Intl.DateTimeFormat("es-CO", {
+      timeZone: "America/Bogota",
       year: "2-digit",
       month: "2-digit",
       day: "2-digit",
